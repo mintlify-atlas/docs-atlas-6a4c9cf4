@@ -1,0 +1,400 @@
+---
+title: Linear Models
+description: Logistic regression and linear SVM text classifiers
+---
+
+## LogisticTextClassifier
+
+Logistic regression classifier using stochastic gradient descent with L2 regularization. Supports multi-class classification via one-vs-rest.
+
+### Constructor
+
+```typescript
+new LogisticTextClassifier(options?: {
+  epochs?: number;
+  learningRate?: number;
+  l2?: number;
+  maxFeatures?: number;
+  useNativeScoring?: boolean;
+})
+```
+
+**Parameters:**
+- `epochs` (optional): Number of training iterations (default: 20, minimum: 1)
+- `learningRate` (optional): Learning rate for SGD (default: 0.1, minimum: 1e-6)
+- `l2` (optional): L2 regularization strength (default: 1e-4, minimum: 0)
+- `maxFeatures` (optional): Max vocabulary size (default: 16000, minimum: 256)
+- `useNativeScoring` (optional): Use native acceleration (default: true)
+
+**Example:**
+```typescript
+import { LogisticTextClassifier } from "bun_nltk";
+
+const classifier = new LogisticTextClassifier({
+  epochs: 30,
+  learningRate: 0.05,
+  l2: 1e-4,
+});
+```
+
+### Methods
+
+#### train()
+
+Train the logistic regression model.
+
+```typescript
+train(examples: LinearModelExample[]): this
+```
+
+**Parameters:**
+- `examples`: Array of `{ label: string, text: string }` objects
+
+**Returns:** The classifier instance (for chaining)
+
+**Throws:** Error if examples array is empty
+
+**Example:**
+```typescript
+classifier.train([
+  { label: "politics", text: "Government announces new policy" },
+  { label: "sports", text: "Team advances to finals" },
+  { label: "technology", text: "AI research makes breakthrough" },
+]);
+```
+
+#### classify()
+
+Predict the most likely label for a text.
+
+```typescript
+classify(text: string): string
+```
+
+**Parameters:**
+- `text`: The text to classify
+
+**Returns:** The predicted label
+
+**Throws:** Error if classifier has no labels
+
+**Example:**
+```typescript
+const label = classifier.classify("New smartphone released");
+console.log(label); // "technology"
+```
+
+#### predict()
+
+Get predictions with probabilities and scores for all labels.
+
+```typescript
+predict(text: string): Array<{
+  label: string;
+  probability: number;
+  score: number;
+}>
+```
+
+**Returns:** Array sorted by probability (descending)
+
+**Example:**
+```typescript
+const predictions = classifier.predict("Election results announced");
+console.log(predictions);
+// [
+//   { label: "politics", probability: 0.78, score: 1.35 },
+//   { label: "sports", probability: 0.15, score: -0.52 },
+//   { label: "technology", probability: 0.07, score: -1.21 }
+// ]
+```
+
+#### classifyBatch()
+
+Classify multiple texts efficiently in batch.
+
+```typescript
+classifyBatch(texts: string[]): string[]
+```
+
+**Parameters:**
+- `texts`: Array of texts to classify
+
+**Returns:** Array of predicted labels
+
+**Example:**
+```typescript
+const texts = [
+  "Stock market rises",
+  "Player scores winning goal",
+  "New software update available",
+];
+const labels = classifier.classifyBatch(texts);
+console.log(labels); // ["politics", "sports", "technology"]
+```
+
+#### evaluate()
+
+Evaluate the classifier on test examples.
+
+```typescript
+evaluate(examples: LinearModelExample[]): {
+  accuracy: number;
+  total: number;
+  correct: number;
+}
+```
+
+**Example:**
+```typescript
+const results = classifier.evaluate(testData);
+console.log(`Accuracy: ${(results.accuracy * 100).toFixed(1)}%`);
+```
+
+#### toJSON() / fromJSON()
+
+Serialize and deserialize the model.
+
+```typescript
+toJSON(): LogisticSerialized
+static fromJSON(payload: LogisticSerialized): LogisticTextClassifier
+```
+
+**Example:**
+```typescript
+// Save
+const data = classifier.toJSON();
+await Bun.write("logistic.json", JSON.stringify(data));
+
+// Load
+const loaded = LogisticTextClassifier.fromJSON(
+  await Bun.file("logistic.json").json()
+);
+```
+
+## LinearSvmTextClassifier
+
+Linear Support Vector Machine classifier using hinge loss with margin and L2 regularization.
+
+### Constructor
+
+```typescript
+new LinearSvmTextClassifier(options?: {
+  epochs?: number;
+  learningRate?: number;
+  l2?: number;
+  margin?: number;
+  maxFeatures?: number;
+  useNativeScoring?: boolean;
+})
+```
+
+**Parameters:**
+- `epochs` (optional): Number of training iterations (default: 20, minimum: 1)
+- `learningRate` (optional): Learning rate for SGD (default: 0.05, minimum: 1e-6)
+- `l2` (optional): L2 regularization strength (default: 5e-4, minimum: 0)
+- `margin` (optional): SVM margin parameter (default: 1.0, minimum: 0.1)
+- `maxFeatures` (optional): Max vocabulary size (default: 16000, minimum: 256)
+- `useNativeScoring` (optional): Use native acceleration (default: true)
+
+**Example:**
+```typescript
+import { LinearSvmTextClassifier } from "bun_nltk";
+
+const classifier = new LinearSvmTextClassifier({
+  epochs: 25,
+  learningRate: 0.03,
+  margin: 1.5,
+});
+```
+
+### Methods
+
+The LinearSvmTextClassifier has the same methods as LogisticTextClassifier:
+- `train(examples)` - Train the SVM
+- `classify(text)` - Predict label
+- `predict(text)` - Get scores for all labels (no probabilities)
+- `classifyBatch(texts)` - Batch classification
+- `evaluate(examples)` - Compute accuracy
+- `toJSON()` / `fromJSON()` - Serialization
+
+**Predict() difference:**
+```typescript
+predict(text: string): Array<{
+  label: string;
+  score: number; // Raw SVM score (no probability)
+}>
+```
+
+## Helper Functions
+
+### trainLogisticTextClassifier()
+
+```typescript
+trainLogisticTextClassifier(
+  examples: LinearModelExample[],
+  options?: {
+    epochs?: number;
+    learningRate?: number;
+    l2?: number;
+    maxFeatures?: number;
+    useNativeScoring?: boolean;
+  }
+): LogisticTextClassifier
+```
+
+### trainLinearSvmTextClassifier()
+
+```typescript
+trainLinearSvmTextClassifier(
+  examples: LinearModelExample[],
+  options?: {
+    epochs?: number;
+    learningRate?: number;
+    l2?: number;
+    margin?: number;
+    maxFeatures?: number;
+    useNativeScoring?: boolean;
+  }
+): LinearSvmTextClassifier
+```
+
+### loadLogisticTextClassifier()
+
+```typescript
+loadLogisticTextClassifier(
+  payload: LogisticSerialized
+): LogisticTextClassifier
+```
+
+### loadLinearSvmTextClassifier()
+
+```typescript
+loadLinearSvmTextClassifier(
+  payload: LinearSvmSerialized
+): LinearSvmTextClassifier
+```
+
+## Types
+
+### LinearModelExample
+
+```typescript
+type LinearModelExample = {
+  label: string;
+  text: string;
+};
+```
+
+### LogisticSerialized
+
+```typescript
+type LogisticSerialized = {
+  version: number;
+  labels: string[];
+  vectorizer: VectorizerSerialized;
+  weights: number[];
+  bias: number[];
+  options: {
+    epochs: number;
+    learningRate: number;
+    l2: number;
+    maxFeatures: number;
+    useNativeScoring?: boolean;
+  };
+};
+```
+
+### LinearSvmSerialized
+
+```typescript
+type LinearSvmSerialized = {
+  version: number;
+  labels: string[];
+  vectorizer: VectorizerSerialized;
+  weights: number[];
+  bias: number[];
+  options: {
+    epochs: number;
+    learningRate: number;
+    l2: number;
+    margin: number;
+    maxFeatures: number;
+    useNativeScoring?: boolean;
+  };
+};
+```
+
+## Complete Example
+
+```typescript
+import {
+  trainLogisticTextClassifier,
+  trainLinearSvmTextClassifier,
+} from "bun_nltk";
+
+// Training data for sentiment analysis
+const trainingData = [
+  { label: "positive", text: "Excellent product, very satisfied" },
+  { label: "negative", text: "Terrible quality, waste of money" },
+  { label: "neutral", text: "Average product, nothing special" },
+  { label: "positive", text: "Love it! Highly recommend" },
+  { label: "negative", text: "Broke after one week" },
+  { label: "neutral", text: "Works as expected" },
+];
+
+// Train logistic regression
+const logistic = trainLogisticTextClassifier(trainingData, {
+  epochs: 30,
+  learningRate: 0.1,
+});
+
+// Train linear SVM
+const svm = trainLinearSvmTextClassifier(trainingData, {
+  epochs: 25,
+  learningRate: 0.05,
+  margin: 1.0,
+});
+
+// Compare predictions
+const text = "Amazing value for the price";
+console.log("Logistic:", logistic.predict(text));
+console.log("SVM:", svm.predict(text));
+
+// Batch classification
+const reviews = [
+  "Great purchase",
+  "Not worth it",
+  "It's okay",
+];
+console.log(logistic.classifyBatch(reviews));
+// ["positive", "negative", "neutral"]
+
+// Evaluate both models
+const testData = [
+  { label: "positive", text: "Best decision ever" },
+  { label: "negative", text: "Complete disappointment" },
+];
+
+const logisticMetrics = logistic.evaluate(testData);
+const svmMetrics = svm.evaluate(testData);
+
+console.log(`Logistic accuracy: ${(logisticMetrics.accuracy * 100).toFixed(1)}%`);
+console.log(`SVM accuracy: ${(svmMetrics.accuracy * 100).toFixed(1)}%`);
+
+// Save models
+await Bun.write("logistic.json", JSON.stringify(logistic.toJSON()));
+await Bun.write("svm.json", JSON.stringify(svm.toJSON()));
+```
+
+## Choosing Between Logistic and SVM
+
+**Use Logistic Regression when:**
+- You need probability estimates
+- You want calibrated confidence scores
+- You have balanced classes
+
+**Use Linear SVM when:**
+- You only need the best label
+- You have imbalanced classes (adjust margin)
+- You want more robust decision boundaries

@@ -1,0 +1,154 @@
+---
+title: Loading WordNet
+description: Load WordNet databases in different sizes and formats
+---
+
+## Overview
+
+bun_nltk provides three methods to load WordNet lexical databases with different trade-offs between size and coverage:
+
+- **Mini** - Compact subset with common words
+- **Extended** - Larger vocabulary with more synsets
+- **Packed** - Full WordNet in binary format for maximum coverage
+
+## Loading Functions
+
+### loadWordNetMini
+
+Loads the compact WordNet mini database. Uses automatic caching for subsequent calls.
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+// Or specify custom path
+const customWordNet = loadWordNetMini('/path/to/wordnet_mini.json');
+```
+
+**Parameters:**
+- `path?: string` - Optional custom path to WordNet mini JSON file. If omitted, uses bundled model at `models/wordnet_mini.json`
+
+**Returns:**
+- `WordNet` - Loaded WordNet instance
+
+**Details:**
+- Automatically cached on first call when no path is provided
+- Subsequent calls with no path return cached instance
+- Uses JSON format for storage
+- Best for applications with size constraints
+
+### loadWordNetExtended
+
+Loads the extended WordNet database with larger vocabulary coverage.
+
+```typescript
+import { loadWordNetExtended } from 'bun_nltk';
+
+const wordnet = loadWordNetExtended();
+// Or specify custom path
+const customWordNet = loadWordNetExtended('/path/to/wordnet_extended.json');
+```
+
+**Parameters:**
+- `path?: string` - Optional custom path to WordNet extended JSON file. If omitted, uses bundled model at `models/wordnet_extended.json`
+
+**Returns:**
+- `WordNet` - Loaded WordNet instance
+
+**Details:**
+- Automatically cached on first call when no path is provided
+- Subsequent calls with no path return cached instance
+- Uses JSON format for storage
+- Balances size and coverage for most applications
+
+### loadWordNetPacked
+
+Loads the full WordNet database from packed binary format.
+
+```typescript
+import { loadWordNetPacked } from 'bun_nltk';
+
+const wordnet = loadWordNetPacked();
+// Or specify custom path
+const customWordNet = loadWordNetPacked('/path/to/wordnet_full.bin');
+```
+
+**Parameters:**
+- `path?: string` - Optional custom path to packed WordNet binary file. If omitted, uses bundled model at `models/wordnet_full.bin`
+
+**Returns:**
+- `WordNet` - Loaded WordNet instance
+
+**Details:**
+- Automatically cached on first call when no path is provided
+- Subsequent calls with no path return cached instance
+- Uses binary format with magic header `BNWN1` for validation
+- Binary format structure:
+  - 5 bytes: Magic string "BNWN1"
+  - 4 bytes: Payload length (little-endian uint32)
+  - N bytes: JSON payload
+- Best for applications requiring maximum vocabulary coverage
+- Throws error if magic header is invalid or file is corrupted
+
+## Binary Format Details
+
+The packed WordNet format uses a custom binary structure:
+
+```typescript
+// Format layout:
+// [5 bytes magic] [4 bytes length] [N bytes JSON]
+const WORDNET_PACK_MAGIC = "BNWN1";
+```
+
+**Validation:**
+- Verifies magic header matches `BNWN1`
+- Checks payload length doesn't exceed file bounds
+- Throws descriptive errors for format violations
+
+## Choosing a Version
+
+| Version | File Size | Synsets | Use Case |
+|---------|-----------|---------|----------|
+| Mini | Smallest | Basic vocabulary | Embedded systems, mobile apps |
+| Extended | Medium | Common + specialized | Most applications |
+| Packed | Largest | Full WordNet | Research, comprehensive NLP |
+
+## Caching Behavior
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+// First call: loads from disk
+const wn1 = loadWordNetMini();
+
+// Second call: returns cached instance (no disk I/O)
+const wn2 = loadWordNetMini();
+
+console.log(wn1 === wn2); // true
+
+// Custom path: always loads fresh instance
+const wn3 = loadWordNetMini('/custom/path.json');
+console.log(wn1 === wn3); // false
+```
+
+## Error Handling
+
+```typescript
+import { loadWordNetPacked } from 'bun_nltk';
+
+try {
+  const wordnet = loadWordNetPacked('/path/to/file.bin');
+} catch (error) {
+  // Possible errors:
+  // - "invalid wordnet pack magic: <magic>"
+  // - "invalid wordnet pack length"
+  // - File not found (from readFileSync)
+  console.error('Failed to load WordNet:', error);
+}
+```
+
+## Related
+
+- [Synsets](/api/wordnet/synsets) - Query and access synsets
+- [Relations](/api/wordnet/relations) - Traverse semantic relationships
+- [Morphy](/api/wordnet/morphy) - Morphological analysis

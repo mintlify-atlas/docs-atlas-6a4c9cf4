@@ -1,0 +1,228 @@
+---
+title: Earley Parser
+description: Top-down chart parsing with the Earley algorithm
+---
+
+## earleyRecognize
+
+Recognize if tokens can be parsed by a CFG grammar using Earley algorithm.
+
+```typescript
+function earleyRecognize(
+  tokens: string[],
+  grammar: CfgGrammar,
+  options?: { startSymbol?: string }
+): boolean
+```
+
+### Parameters
+
+<ParamField path="tokens" type="string[]" required>
+  Array of tokens to recognize
+</ParamField>
+
+<ParamField path="grammar" type="CfgGrammar" required>
+  Parsed CFG grammar from `parseCfgGrammar`
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Override start symbol from grammar
+</ParamField>
+
+### Returns
+
+`true` if tokens can be parsed by the grammar, `false` otherwise.
+
+### Example
+
+```typescript
+import { parseCfgGrammar, earleyRecognize } from "bun_nltk";
+
+const grammar = parseCfgGrammar(`
+S -> NP VP
+NP -> 'the' NN
+VP -> VB NP
+NN -> 'dog'
+VB -> 'saw'
+`);
+
+console.log(earleyRecognize(["the", "dog", "saw", "the", "dog"], grammar));
+// true
+
+console.log(earleyRecognize(["dog", "the"], grammar));
+// false
+```
+
+### Algorithm
+
+Earley parsing is a top-down chart parsing algorithm:
+- **Prediction**: Add states for rules starting with expected nonterminal
+- **Scanning**: Advance dot past matching terminal
+- **Completion**: Advance parent states when rule is complete
+
+Advantages over CYK:
+- Works with any CFG (no CNF conversion)
+- More efficient for certain grammars
+- Natural left-to-right processing
+
+---
+
+## earleyParse
+
+Parse tokens using Earley recognition and chart parsing.
+
+```typescript
+function earleyParse(
+  tokens: string[],
+  grammar: CfgGrammar,
+  options?: {
+    maxTrees?: number;
+    startSymbol?: string;
+  }
+): ParseTree[]
+```
+
+### Parameters
+
+<ParamField path="tokens" type="string[]" required>
+  Array of tokens to parse
+</ParamField>
+
+<ParamField path="grammar" type="CfgGrammar" required>
+  Parsed CFG grammar from `parseCfgGrammar`
+</ParamField>
+
+<ParamField path="options.maxTrees" type="number" default={8}>
+  Maximum number of parse trees to return
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Override start symbol from grammar
+</ParamField>
+
+### Returns
+
+Array of parse trees (up to `maxTrees`). Returns empty array if input cannot be parsed.
+
+Each tree has:
+- `label`: string - Node label (nonterminal or terminal)
+- `children`: Array of ParseTree or string - Child nodes or terminal strings
+
+### Example
+
+```typescript
+import { parseCfgGrammar, earleyParse } from "bun_nltk";
+
+const grammar = parseCfgGrammar(`
+S -> NP VP
+NP -> 'she' | 'he'
+VP -> VB | VB NP
+VB -> 'runs' | 'likes'
+`);
+
+const trees = earleyParse(["she", "runs"], grammar);
+console.log(trees[0]);
+// {
+//   label: "S",
+//   children: [
+//     { label: "NP", children: ["she"] },
+//     { label: "VP", children: [{ label: "VB", children: ["runs"] }] }
+//   ]
+// }
+```
+
+### Implementation
+
+1. Uses `earleyRecognize` to check if input is parsable
+2. If recognized, uses `chartParse` to build parse trees
+3. Returns empty array for unparsable input
+
+---
+
+## parseTextWithEarley
+
+Parse natural language text using Earley algorithm.
+
+```typescript
+function parseTextWithEarley(
+  text: string,
+  grammar: CfgGrammar | string,
+  options?: {
+    maxTrees?: number;
+    startSymbol?: string;
+    normalizeTokens?: boolean;
+  }
+): ParseTree[]
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  Natural language text to parse
+</ParamField>
+
+<ParamField path="grammar" type="CfgGrammar | string" required>
+  Parsed grammar or grammar text string
+</ParamField>
+
+<ParamField path="options.maxTrees" type="number" default={8}>
+  Maximum parse trees to return
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Override grammar start symbol
+</ParamField>
+
+<ParamField path="options.normalizeTokens" type="boolean" default={true}>
+  Convert tokens to lowercase before parsing
+</ParamField>
+
+### Returns
+
+Array of parse trees. See `earleyParse` for tree structure.
+
+### Example
+
+```typescript
+import { parseTextWithEarley } from "bun_nltk";
+
+const grammar = `
+S -> NP VP
+NP -> 'i' | 'you'
+VP -> VB NP | VB
+VB -> 'like' | 'see'
+`;
+
+const trees = parseTextWithEarley("I like you", grammar);
+console.log(trees[0]);
+// {
+//   label: "S",
+//   children: [
+//     { label: "NP", children: ["i"] },
+//     { label: "VP", children: [
+//       { label: "VB", children: ["like"] },
+//       { label: "NP", children: ["you"] }
+//     ]}
+//   ]
+// }
+```
+
+### Processing
+
+1. Tokenizes text using word tokenizer
+2. Filters to alphanumeric tokens
+3. Normalizes to lowercase (if enabled)
+4. Parses with `earleyParse`
+
+### When to Use Earley
+
+Prefer Earley parser when:
+- Grammar has many unary or epsilon rules
+- Left-recursive grammars (after transformation)
+- Real-time parsing requirements
+- Grammar is frequently modified
+
+Prefer CYK parser (`parseTextWithCfg`) when:
+- Grammar is fixed and can be optimized
+- Need all parse trees efficiently
+- Grammar naturally fits CNF

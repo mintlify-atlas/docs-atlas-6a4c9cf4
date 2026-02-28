@@ -1,0 +1,358 @@
+---
+title: Morphological Analysis
+description: Lemmatization and inflection recovery with WordNet Morphy
+---
+
+## Overview
+
+Morphy is WordNet's morphological analyzer that reduces inflected word forms to their base lemmas. bun_nltk provides both JavaScript and native implementations for finding dictionary base forms.
+
+## Method
+
+### morphy
+
+Reduces an inflected or variant word form to its base lemma found in WordNet.
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Verb inflections
+console.log(wordnet.morphy('running', 'v'));   // "run"
+console.log(wordnet.morphy('ran', 'v'));       // "run"
+console.log(wordnet.morphy('runs', 'v'));      // "run"
+
+// Noun inflections
+console.log(wordnet.morphy('dogs', 'n'));      // "dog"
+console.log(wordnet.morphy('children', 'n'));  // "child"
+console.log(wordnet.morphy('mice', 'n'));      // "mouse"
+
+// Adjective inflections
+console.log(wordnet.morphy('better', 'a'));    // "good"
+console.log(wordnet.morphy('biggest', 'a'));   // "big"
+
+// Without POS, tries all categories
+console.log(wordnet.morphy('running'));        // "run"
+
+// Returns null if no base form found
+console.log(wordnet.morphy('xyzabc'));         // null
+```
+
+**Parameters:**
+- `word: string` - Inflected word form to analyze
+- `pos?: WordNetPos` - Optional part of speech: "n" (noun), "v" (verb), "a" (adjective), or "r" (adverb)
+
+**Returns:**
+- `string | null` - Base lemma if found in WordNet, null otherwise
+
+**Details:**
+- Tries native morphological algorithm first via `wordnetMorphyAsciiNative()`
+- Falls back to rule-based candidate generation
+- Returns first candidate found in WordNet's lemma index
+- Without POS, tries all morphological rules across all parts of speech
+- Always validates results against actual WordNet entries
+
+## Native Function
+
+### wordnetMorphyAsciiNative
+
+Direct access to the native morphological analyzer (lower-level API).
+
+```typescript
+import { wordnetMorphyAsciiNative } from 'bun_nltk';
+
+// Requires POS code
+console.log(wordnetMorphyAsciiNative('running', 'v'));  // "run"
+console.log(wordnetMorphyAsciiNative('dogs', 'n'));     // "dog"
+
+// Without POS (tries all)
+console.log(wordnetMorphyAsciiNative('running'));       // "run"
+
+// Returns empty string if not found
+console.log(wordnetMorphyAsciiNative('xyzabc'));        // ""
+```
+
+**Parameters:**
+- `word: string` - Word to analyze
+- `pos?: "n" | "v" | "a" | "r"` - Optional part of speech
+
+**Returns:**
+- `string` - Base form (empty string if not found)
+
+**Details:**
+- Implemented in native code for performance
+- Uses WordNet's morphological database
+- Returns empty string (not null) when no base form found
+- Does NOT validate against WordNet entries (unlike `morphy()` method)
+- Lower-level interface; prefer `WordNet.morphy()` for most use cases
+
+## Morphological Rules
+
+bun_nltk includes rule-based morphology as a fallback:
+
+### Noun Rules
+
+```typescript
+function nounMorphCandidates(word: string): string[] {
+  const lower = normalizeLemma(word);
+  const out = [lower];
+  
+  // Irregular plurals
+  if (lower.endsWith("ies") && lower.length > 3)
+    out.push(`${lower.slice(0, -3)}y`);      // "babies" → "baby"
+  
+  if (lower.endsWith("ves") && lower.length > 3)
+    out.push(`${lower.slice(0, -3)}f`);      // "wolves" → "wolf"
+  
+  // Regular plurals
+  if (lower.endsWith("es") && lower.length > 2)
+    out.push(lower.slice(0, -2));            // "boxes" → "box"
+  
+  if (lower.endsWith("s") && lower.length > 1)
+    out.push(lower.slice(0, -1));            // "dogs" → "dog"
+  
+  return unique(out);
+}
+```
+
+### Verb Rules
+
+```typescript
+function verbMorphCandidates(word: string): string[] {
+  const lower = normalizeLemma(word);
+  const out = [lower];
+  
+  // -ies ending
+  if (lower.endsWith("ies") && lower.length > 3)
+    out.push(`${lower.slice(0, -3)}y`);      // "tries" → "try"
+  
+  // -ing ending
+  if (lower.endsWith("ing") && lower.length > 4) {
+    out.push(lower.slice(0, -3));            // "running" → "run"
+    out.push(`${lower.slice(0, -3)}e`);      // "making" → "make"
+  }
+  
+  // -ed ending
+  if (lower.endsWith("ed") && lower.length > 3) {
+    out.push(lower.slice(0, -2));            // "played" → "play"
+    out.push(lower.slice(0, -1));            // "stopped" → "stop" (doubled)
+  }
+  
+  // -s ending
+  if (lower.endsWith("s") && lower.length > 1)
+    out.push(lower.slice(0, -1));            // "runs" → "run"
+  
+  return unique(out);
+}
+```
+
+### Adjective Rules
+
+```typescript
+function adjectiveMorphCandidates(word: string): string[] {
+  const lower = normalizeLemma(word);
+  const out = [lower];
+  
+  // Comparative
+  if (lower.endsWith("er") && lower.length > 2)
+    out.push(lower.slice(0, -2));            // "bigger" → "big"
+  
+  // Superlative
+  if (lower.endsWith("est") && lower.length > 3)
+    out.push(lower.slice(0, -3));            // "biggest" → "big"
+  
+  return unique(out);
+}
+```
+
+### Adverb Rules
+
+```typescript
+// Adverbs have minimal morphology
+if (pos === "r") return [normalizeLemma(word)];
+```
+
+## Algorithm Flow
+
+The `morphy()` method follows this algorithm:
+
+```typescript
+morphy(word: string, pos?: WordNetPos): string | null {
+  // 1. Try native morphy first
+  const nativeCandidate = wordnetMorphyAsciiNative(word, pos);
+  if (nativeCandidate) {
+    // Validate against WordNet entries
+    const rows = this.lemmaIndex.get(nativeCandidate);
+    if (rows && rows.length > 0 && (!pos || rows.some((row) => row.pos === pos))) {
+      return nativeCandidate;
+    }
+  }
+  
+  // 2. Try rule-based candidates
+  for (const candidate of morphCandidates(word, pos)) {
+    const rows = this.lemmaIndex.get(candidate);
+    if (!rows || rows.length === 0) continue;
+    if (!pos || rows.some((row) => row.pos === pos)) return candidate;
+  }
+  
+  // 3. Not found
+  return null;
+}
+```
+
+## Usage Examples
+
+### Normalizing Text
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function lemmatizeText(text: string, pos?: 'n' | 'v' | 'a' | 'r'): string[] {
+  const words = text.toLowerCase().split(/\s+/);
+  return words.map(word => wordnet.morphy(word, pos) || word);
+}
+
+const text = "The children were running quickly";
+console.log(lemmatizeText(text));
+// ["the", "child", "be", "run", "quick"]
+
+const verbsOnly = "running played swimming";
+console.log(lemmatizeText(verbsOnly, 'v'));
+// ["run", "play", "swim"]
+```
+
+### Handling Irregular Forms
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+const irregulars = [
+  'children',  // → child
+  'mice',      // → mouse
+  'geese',     // → goose
+  'feet',      // → foot
+  'teeth',     // → tooth
+  'men',       // → man
+  'women',     // → woman
+];
+
+irregulars.forEach(word => {
+  const base = wordnet.morphy(word, 'n');
+  console.log(`${word} → ${base}`);
+});
+```
+
+### Comparing Lemmatization Approaches
+
+```typescript
+import { loadWordNetMini, wordnetMorphyAsciiNative } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function compareMorphy(word: string, pos?: 'n' | 'v' | 'a' | 'r') {
+  const nativeResult = wordnetMorphyAsciiNative(word, pos);
+  const morphyResult = wordnet.morphy(word, pos);
+  
+  console.log(`Word: ${word}`);
+  console.log(`  Native: ${nativeResult || '(empty)'}`);
+  console.log(`  Morphy: ${morphyResult || '(null)'}`);
+  console.log(`  Match: ${nativeResult === morphyResult}`);
+}
+
+compareMorphy('running', 'v');
+compareMorphy('children', 'n');
+compareMorphy('better', 'a');
+```
+
+### Validating Lemmatization
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function isValidLemma(word: string, pos?: 'n' | 'v' | 'a' | 'r'): boolean {
+  // Check if word exists as-is in WordNet
+  const synsets = wordnet.synsets(word, pos);
+  if (synsets.length > 0) return true;
+  
+  // Check if morphy finds a base form
+  const base = wordnet.morphy(word, pos);
+  return base !== null;
+}
+
+console.log(isValidLemma('running', 'v'));     // true (→ run)
+console.log(isValidLemma('xyzabc'));           // false (not in WordNet)
+console.log(isValidLemma('dog', 'n'));         // true (base form)
+```
+
+### Building Lemma Vocabulary
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function buildLemmaMap(words: string[], pos?: 'n' | 'v' | 'a' | 'r'): Map<string, string> {
+  const map = new Map<string, string>();
+  
+  for (const word of words) {
+    const lemma = wordnet.morphy(word, pos);
+    if (lemma) {
+      map.set(word, lemma);
+    }
+  }
+  
+  return map;
+}
+
+const words = ['running', 'ran', 'runs', 'dogs', 'children', 'better'];
+const lemmaMap = buildLemmaMap(words);
+
+lemmaMap.forEach((lemma, word) => {
+  console.log(`${word} → ${lemma}`);
+});
+// running → run
+// ran → run
+// runs → run
+// dogs → dog
+// children → child
+// better → good
+```
+
+## Performance Considerations
+
+- **Native First**: Always tries native morphy first for best performance
+- **Caching**: Consider caching morphy results for repeated lookups
+- **POS Filtering**: Providing POS improves accuracy and speed
+- **Validation**: Unlike native function, `morphy()` validates against WordNet entries
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+const morphyCache = new Map<string, string | null>();
+
+function cachedMorphy(word: string, pos?: 'n' | 'v' | 'a' | 'r'): string | null {
+  const key = `${word}:${pos || 'all'}`;
+  
+  if (morphyCache.has(key)) {
+    return morphyCache.get(key)!;
+  }
+  
+  const result = wordnet.morphy(word, pos);
+  morphyCache.set(key, result);
+  return result;
+}
+```
+
+## Related
+
+- [Synsets](/api/wordnet/synsets) - Query synsets (uses morphy internally)
+- [Porter Stemmer](/api/stemming) - Alternative rule-based stemming
+- [Loading](/api/wordnet/loading) - Load WordNet databases

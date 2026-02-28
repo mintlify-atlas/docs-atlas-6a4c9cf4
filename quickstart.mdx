@@ -1,80 +1,310 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with bun_nltk in minutes with real-world examples
 ---
 
-## Get started in three steps
+# Quickstart
 
-Get your documentation site running locally and make your first customization.
+This guide walks you through the most common bun_nltk operations. You'll learn how to tokenize text, count tokens and n-grams, perform POS tagging, and classify text.
 
-### Step 1: Set up your local environment
+<Note>
+Make sure you've [installed bun_nltk](/installation) before continuing.
+</Note>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+## Basic tokenization
+
+Tokenization is the foundation of most NLP tasks. bun_nltk provides several tokenization methods:
+
+<Steps>
+  <Step title="Simple ASCII tokenization">
+    Use `tokenizeAsciiNative` for fast, case-insensitive tokenization:
+
+    ```typescript
+    import { tokenizeAsciiNative } from "bun_nltk";
+
+    const text = "Hello world! This is a test.";
+    const tokens = tokenizeAsciiNative(text);
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    console.log(tokens);
+    // Output: ["hello", "world", "this", "is", "a", "test"]
+    ```
+
+    <Tip>
+    ASCII tokenization uses the pattern `[A-Za-z0-9']+` and normalizes to lowercase for optimal performance.
+    </Tip>
+  </Step>
+
+  <Step title="Word tokenization with contractions">
+    Use `wordTokenizeSubset` for PTB-style contraction handling:
+
+    ```typescript
+    import { wordTokenizeSubset } from "bun_nltk";
+
+    const text = "John's big idea isn't all that bad.";
+    const tokens = wordTokenizeSubset(text);
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    console.log(tokens);
+    // Output: ["John", "'s", "big", "idea", "is", "n't", "all", "that", "bad", "."]
+    ```
 
-### Step 2: Deploy your changes
+    This tokenizer properly splits contractions like "isn't" into ["is", "n't"] and possessives like "John's" into ["John", "'s"].
+  </Step>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+  <Step title="Tweet tokenization">
+    Use `tweetTokenizeSubset` for social media text:
+
+    ```typescript
+    import { tweetTokenizeSubset } from "bun_nltk";
+
+    const text = "@user Let's test waaaayyy too much!!!!!! #nlp";
+    const tokens = tweetTokenizeSubset(text, {
+      stripHandles: true,
+      reduceLen: true,
+    });
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    console.log(tokens);
+    // Output: ["Let's", "test", "waaayyy", "too", "much", "!", "!", "!", "!", "!", "!", "#nlp"]
+    ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    Options:
+    - `stripHandles`: Remove @mentions
+    - `reduceLen`: Reduce repeated characters (e.g., "waaaayyy" → "waaayyy")
+    - `matchPhoneNumbers`: Detect phone numbers as single tokens
+  </Step>
+</Steps>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+## Counting and statistics
 
-### Step 3: Go live
+bun_nltk provides blazing-fast token and n-gram counting with native Zig implementations:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```typescript
+import {
+  countTokensAscii,
+  countUniqueTokensAscii,
+  countNgramsAscii,
+  computeAsciiMetrics,
+} from "bun_nltk";
+
+const text = "the quick brown fox jumps over the lazy dog";
+
+// Count total tokens
+const tokenCount = countTokensAscii(text);
+console.log(`Total tokens: ${tokenCount}`);
+// Output: Total tokens: 9
+
+// Count unique tokens
+const uniqueCount = countUniqueTokensAscii(text);
+console.log(`Unique tokens: ${uniqueCount}`);
+// Output: Unique tokens: 8
+
+// Count bigrams (n=2)
+const bigramCount = countNgramsAscii(text, 2);
+console.log(`Total bigrams: ${bigramCount}`);
+// Output: Total bigrams: 8
+
+// Get comprehensive metrics
+const metrics = computeAsciiMetrics(text, 2);
+console.log(metrics);
+// Output: {
+//   tokenCount: 9,
+//   uniqueTokenCount: 8,
+//   ngramCount: 8,
+//   uniqueNgramCount: 8
+// }
+```
+
+<Info>
+These counting operations use SIMD instructions on x64 platforms for maximum performance.
+</Info>
+
+## Sentence tokenization
+
+Split text into sentences using the Punkt algorithm:
+
+```typescript
+import {
+  trainPunktModel,
+  sentenceTokenizePunkt,
+  defaultPunktModel,
+} from "bun_nltk";
+
+// Option 1: Use default model
+const text = "Dr. Smith went home. He stayed there. Mr. Jones left early.";
+const sentences = sentenceTokenizePunkt(text, defaultPunktModel());
+
+console.log(sentences);
+// Output: [
+//   "Dr. Smith went home.",
+//   "He stayed there.",
+//   "Mr. Jones left early."
+// ]
+
+// Option 2: Train custom model on your corpus
+const trainingText = "Dr. Adams wrote a paper. Dr. Brown reviewed it. The U.S. team won.";
+const customModel = trainPunktModel(trainingText);
+
+const newText = "Dr. Adams arrived yesterday. He presented the paper.";
+const customSentences = sentenceTokenizePunkt(newText, customModel);
+
+console.log(customSentences);
+// Output: [
+//   "Dr. Adams arrived yesterday.",
+//   "He presented the paper."
+// ]
+```
+
+## Part-of-speech tagging
+
+Tag words with their grammatical categories:
+
+```typescript
+import { posTagAsciiNative } from "bun_nltk";
+
+const text = "The quick brown fox jumps over the lazy dog";
+const tagged = posTagAsciiNative(text);
+
+console.log(tagged);
+// Output: [
+//   { token: "the", tag: "DT", tagId: 0 },
+//   { token: "quick", tag: "JJ", tagId: 1 },
+//   { token: "brown", tag: "JJ", tagId: 1 },
+//   { token: "fox", tag: "NN", tagId: 2 },
+//   { token: "jumps", tag: "VBZ", tagId: 3 },
+//   // ...
+// ]
+```
+
+For more accurate tagging, use the perceptron tagger with a trained model:
+
+```typescript
+import {
+  loadPerceptronTaggerModel,
+  posTagPerceptronAscii,
+} from "bun_nltk";
+
+// Load a pre-trained model
+const modelJson = await Bun.file("models/perceptron_tagger_ascii.json").json();
+const model = loadPerceptronTaggerModel(modelJson);
+
+// Tag text
+const result = posTagPerceptronAscii(text, model);
+console.log(result.tags);
+// Output: ["DT", "JJ", "JJ", "NN", "VBZ", ...]
+```
+
+## Text classification
+
+Classify text with machine learning models:
+
+```typescript
+import {
+  trainNaiveBayesTextClassifier,
+  type NaiveBayesExample,
+} from "bun_nltk";
+
+// Prepare training data
+const trainingData: NaiveBayesExample[] = [
+  { label: "pos", text: "excellent amazing great product happy joy" },
+  { label: "pos", text: "good wonderful fast happy smooth" },
+  { label: "neg", text: "awful bad terrible product sad hate" },
+  { label: "neg", text: "slow broken painful angry bad" },
+];
+
+// Train classifier
+const classifier = trainNaiveBayesTextClassifier(trainingData, {
+  smoothing: 1.0,
+});
+
+// Classify new text
+const prediction1 = classifier.classify("amazing happy good");
+console.log(prediction1); // Output: "pos"
+
+const prediction2 = classifier.classify("terrible bad hate");
+console.log(prediction2); // Output: "neg"
+
+// Get probability scores
+const scores = classifier.probDistribution("great product");
+console.log(scores);
+// Output: { pos: 0.89, neg: 0.11 }
+
+// Evaluate on test data
+const testData: NaiveBayesExample[] = [
+  { label: "pos", text: "great happy smooth excellent" },
+  { label: "neg", text: "bad broken terrible slow" },
+];
+
+const evaluation = classifier.evaluate(testData);
+console.log(evaluation);
+// Output: { accuracy: 1.0, correct: 2, total: 2 }
+```
+
+## N-grams and collocations
+
+Generate n-grams and find significant word pairs:
+
+```typescript
+import { ngramsAsciiNative, topPmiBigramsAscii } from "bun_nltk";
+
+const text = "natural language processing with natural language toolkit";
+
+// Generate bigrams (n=2)
+const bigrams = ngramsAsciiNative(text, 2);
+console.log(bigrams);
+// Output: [
+//   ["natural", "language"],
+//   ["language", "processing"],
+//   ["processing", "with"],
+//   // ...
+// ]
+
+// Find top PMI (Pointwise Mutual Information) bigrams
+const pmiPairs = topPmiBigramsAscii(text, 3, 2); // top 3, window size 2
+console.log(pmiPairs);
+// Output: Top collocations based on PMI scores
+```
+
+## Using WASM runtime
+
+For platforms without native binaries or browser environments, use the WASM runtime:
+
+```typescript
+import { WasmNltk } from "bun_nltk";
+
+// Initialize WASM runtime
+const wasm = new WasmNltk();
+await wasm.init();
+
+// Use WASM methods (same API as native)
+const text = "Hello world from WASM!";
+const tokens = wasm.tokenizeAscii(text);
+const count = wasm.countTokensAscii(text);
+
+console.log(`Tokens: ${tokens.join(", ")}`);
+console.log(`Count: ${count}`);
+```
+
+<Info>
+The WASM runtime provides the same API as native functions but works in any environment, including browsers.
+</Info>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+You now know the basics of bun_nltk! Explore more advanced features:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Language models" icon="language" href="/language-models">
+    Build n-gram language models with smoothing
+  </Card>
+  
+  <Card title="Parsing" icon="project-diagram" href="/parsing">
+    Parse sentences with CFG, PCFG, and Earley parsers
+  </Card>
+  
+  <Card title="WordNet" icon="book" href="/wordnet">
+    Explore semantic relationships and synsets
+  </Card>
+  
+  <Card title="API reference" icon="code" href="/api-reference">
+    View the complete API documentation
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

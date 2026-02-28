@@ -1,0 +1,260 @@
+---
+title: 'Perceptron Tagger'
+description: 'Machine learning-based POS tagging using perceptron models'
+---
+
+## posTagPerceptronAscii
+
+Performs part-of-speech tagging using a trained averaged perceptron model. Provides higher accuracy than rule-based tagging.
+
+```typescript
+function posTagPerceptronAscii(
+  text: string,
+  options?: PerceptronTaggerOptions
+): PerceptronTaggedToken[]
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  The input text to tag. Must be ASCII-compatible.
+</ParamField>
+
+<ParamField path="options" type="PerceptronTaggerOptions">
+  Optional configuration for the tagger.
+  
+  <Expandable title="PerceptronTaggerOptions properties">
+    <ParamField path="model" type="PerceptronTaggerModel">
+      Pre-loaded perceptron model. If not provided, loads the default model.
+    </ParamField>
+    
+    <ParamField path="wasm" type="WasmNltk">
+      WebAssembly runtime instance for WASM-based inference.
+    </ParamField>
+    
+    <ParamField path="useWasm" type="boolean">
+      Force use of WebAssembly implementation. Requires `wasm` parameter.
+    </ParamField>
+    
+    <ParamField path="useNative" type="boolean" default={true}>
+      Use native implementation. Set to `false` to fall back to JavaScript.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="PerceptronTaggedToken[]" type="array">
+  Array of tokens with their predicted POS tags.
+  
+  <Expandable title="PerceptronTaggedToken properties">
+    <ResponseField name="token" type="string">
+      The original token text.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string">
+      The predicted POS tag (e.g., "NN", "VBD", "JJ").
+    </ResponseField>
+    
+    <ResponseField name="tagId" type="number">
+      Numeric identifier for the tag in the model's tag set.
+    </ResponseField>
+    
+    <ResponseField name="start" type="number">
+      Character offset of the token in the original text.
+    </ResponseField>
+    
+    <ResponseField name="length" type="number">
+      Length of the token in characters.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```typescript
+import { posTagPerceptronAscii } from 'bun_nltk';
+
+const text = "The quick brown fox jumps over the lazy dog";
+const tags = posTagPerceptronAscii(text);
+
+console.log(tags);
+// [
+//   { token: "The", tag: "DT", tagId: 4, start: 0, length: 3 },
+//   { token: "quick", tag: "JJ", tagId: 7, start: 4, length: 5 },
+//   { token: "brown", tag: "JJ", tagId: 7, start: 10, length: 5 },
+//   { token: "fox", tag: "NN", tagId: 12, start: 16, length: 3 },
+//   { token: "jumps", tag: "VBZ", tagId: 38, start: 20, length: 5 },
+//   ...
+// ]
+```
+
+### Custom Model
+
+```typescript
+import { posTagPerceptronAscii, loadPerceptronTaggerModel } from 'bun_nltk';
+
+// Load a custom trained model
+const customModel = loadPerceptronTaggerModel('./my_model.json');
+
+const tags = posTagPerceptronAscii("Hello world", {
+  model: customModel
+});
+```
+
+## loadPerceptronTaggerModel
+
+Loads a perceptron tagger model from a JSON file.
+
+```typescript
+function loadPerceptronTaggerModel(path?: string): PerceptronTaggerModel
+```
+
+### Parameters
+
+<ParamField path="path" type="string">
+  Path to the model JSON file. If not provided, loads the default bundled model.
+</ParamField>
+
+### Returns
+
+<ResponseField name="PerceptronTaggerModel" type="object">
+  The loaded and prepared model ready for inference.
+  
+  <Expandable title="PerceptronTaggerModel properties">
+    <ResponseField name="version" type="number">
+      Model format version.
+    </ResponseField>
+    
+    <ResponseField name="tags" type="string[]">
+      Array of POS tag labels.
+    </ResponseField>
+    
+    <ResponseField name="featureCount" type="number">
+      Number of features in the model.
+    </ResponseField>
+    
+    <ResponseField name="tagCount" type="number">
+      Number of distinct tags.
+    </ResponseField>
+    
+    <ResponseField name="featureIndex" type="Record<string, number>">
+      Map from feature names to feature IDs.
+    </ResponseField>
+    
+    <ResponseField name="weights" type="Float32Array">
+      Model weight matrix (featureCount × tagCount).
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="Record<string, unknown>">
+      Optional model metadata.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```typescript
+import { loadPerceptronTaggerModel } from 'bun_nltk';
+
+const model = loadPerceptronTaggerModel();
+console.log(`Loaded model with ${model.featureCount} features and ${model.tagCount} tags`);
+```
+
+## preparePerceptronTaggerModel
+
+Prepares a serialized model for use. Useful when loading from non-standard sources.
+
+```typescript
+function preparePerceptronTaggerModel(
+  payload: PerceptronTaggerModelSerialized
+): PerceptronTaggerModel
+```
+
+### Parameters
+
+<ParamField path="payload" type="PerceptronTaggerModelSerialized" required>
+  Serialized model data.
+  
+  <Expandable title="PerceptronTaggerModelSerialized properties">
+    <ParamField path="version" type="number" required>
+      Model version number.
+    </ParamField>
+    
+    <ParamField path="type" type="string" required>
+      Model type identifier (e.g., "perceptron_tagger").
+    </ParamField>
+    
+    <ParamField path="tags" type="string[]" required>
+      Array of POS tag labels.
+    </ParamField>
+    
+    <ParamField path="feature_count" type="number" required>
+      Total number of features.
+    </ParamField>
+    
+    <ParamField path="tag_count" type="number" required>
+      Total number of tags.
+    </ParamField>
+    
+    <ParamField path="feature_index" type="Record<string, number>" required>
+      Feature name to ID mapping.
+    </ParamField>
+    
+    <ParamField path="weights" type="number[]" required>
+      Flattened weight matrix.
+    </ParamField>
+    
+    <ParamField path="metadata" type="Record<string, unknown>">
+      Optional metadata.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="PerceptronTaggerModel" type="object">
+  Prepared model with optimized weight storage.
+</ResponseField>
+
+### Example
+
+```typescript
+import { preparePerceptronTaggerModel } from 'bun_nltk';
+
+// Load from database or API
+const serialized = await fetchModelFromAPI();
+const model = preparePerceptronTaggerModel(serialized);
+```
+
+### Model Features
+
+The perceptron tagger uses the following features for each token:
+
+- **bias** - Bias term
+- **w** - Token text (lowercased)
+- **p1, p2, p3** - Token prefixes (1-3 characters)
+- **s1, s2, s3** - Token suffixes (1-3 characters)
+- **prev** - Previous token
+- **next** - Next token
+- **is_upper** - Whether token is all uppercase
+- **is_title** - Whether token is title-cased
+- **has_digit** - Whether token contains digits
+- **has_hyphen** - Whether token contains hyphens
+
+### Performance
+
+<Info>
+  The native implementation provides 10-100x speedup compared to pure JavaScript, especially for large texts.
+</Info>
+
+### Accuracy
+
+<Note>
+  The perceptron tagger typically achieves 95-97% accuracy on standard English text when trained on Penn Treebank data.
+</Note>
+
+### Related APIs
+
+- [POS Tagging](/api-reference/tagging/pos-tagging) - Rule-based tagging
+- [Frequency Distributions](/api-reference/tagging/frequency-distributions) - Analyze tag distributions

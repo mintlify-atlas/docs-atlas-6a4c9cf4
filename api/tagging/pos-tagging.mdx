@@ -1,0 +1,111 @@
+---
+title: 'POS Tagging'
+description: 'Part-of-speech tagging with rule-based taggers'
+---
+
+## posTagAsciiNative
+
+Performs rule-based part-of-speech tagging on ASCII text using native implementation.
+
+```typescript
+function posTagAsciiNative(text: string): PosTag[]
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  The input text to tag. Must be ASCII-compatible.
+</ParamField>
+
+### Returns
+
+<ResponseField name="PosTag[]" type="array">
+  Array of tagged tokens with position information.
+  
+  <Expandable title="PosTag properties">
+    <ResponseField name="token" type="string">
+      The original token text.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="PosTagName">
+      The assigned POS tag (e.g., "NN", "NNP", "VBG").
+    </ResponseField>
+    
+    <ResponseField name="tagId" type="number">
+      Numeric identifier for the tag.
+    </ResponseField>
+    
+    <ResponseField name="start" type="number">
+      Byte offset of the token in the original text.
+    </ResponseField>
+    
+    <ResponseField name="length" type="number">
+      Length of the token in bytes.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### POS Tag Types
+
+Supported POS tags:
+
+- **NN** - Noun, singular or mass
+- **NNP** - Proper noun, singular
+- **CD** - Cardinal number
+- **VBG** - Verb, gerund or present participle
+- **VBD** - Verb, past tense
+- **RB** - Adverb
+- **DT** - Determiner
+- **CC** - Coordinating conjunction
+- **PRP** - Personal pronoun
+- **VB** - Verb, base form
+
+### Example
+
+```typescript
+import { posTagAsciiNative } from 'bun_nltk';
+
+const text = "The quick brown fox jumps over the lazy dog";
+const tags = posTagAsciiNative(text);
+
+console.log(tags);
+// [
+//   { token: "The", tag: "DT", tagId: 6, start: 0, length: 3 },
+//   { token: "quick", tag: "RB", tagId: 5, start: 4, length: 5 },
+//   { token: "brown", tag: "NN", tagId: 0, start: 10, length: 5 },
+//   { token: "fox", tag: "NN", tagId: 0, start: 16, length: 3 },
+//   { token: "jumps", tag: "VB", tagId: 9, start: 20, length: 5 },
+//   ...
+// ]
+```
+
+## posTagAscii
+
+Alias for `posTagAsciiNative`. Provides the same functionality with a shorter name.
+
+```typescript
+function posTagAscii(text: string): PosTag[]
+```
+
+### Performance
+
+The native implementation uses optimized C/Rust code for high-performance tagging:
+
+- **Fast**: Processes thousands of tokens per millisecond
+- **Zero-copy**: Operates directly on byte arrays
+- **Low memory**: Minimal allocation overhead
+
+### Usage Notes
+
+<Note>
+  This is a rule-based tagger with limited accuracy. For higher accuracy, use `posTagPerceptronAscii` which employs a machine learning model.
+</Note>
+
+<Warning>
+  Input must be ASCII text. Non-ASCII characters may cause unexpected results or errors.
+</Warning>
+
+### Related APIs
+
+- [Perceptron Tagger](/api-reference/tagging/perceptron-tagger) - ML-based POS tagging
+- [Frequency Distributions](/api-reference/tagging/frequency-distributions) - Token frequency analysis

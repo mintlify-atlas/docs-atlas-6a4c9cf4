@@ -1,0 +1,493 @@
+---
+title: Performance APIs
+description: Performance-critical native APIs with SIMD optimizations
+---
+
+## Overview
+
+The native library includes performance-optimized implementations with SIMD (Single Instruction, Multiple Data) acceleration for CPU-intensive operations. Many functions have both SIMD-optimized and scalar fallback implementations.
+
+## SIMD-Optimized Functions
+
+### Token Counting
+
+#### countTokensAscii() - SIMD Path
+
+High-performance token counting with SIMD acceleration.
+
+```typescript
+function countTokensAscii(text: string): number
+```
+
+**Performance**: Processes multiple bytes per CPU cycle using SIMD instructions.
+
+#### countTokensAsciiScalar() - Scalar Fallback
+
+Scalar implementation for platforms without SIMD support.
+
+```typescript
+function countTokensAsciiScalar(text: string): number
+```
+
+#### Example & Benchmark
+
+```typescript
+import { 
+  countTokensAscii, 
+  countTokensAsciiScalar 
+} from "bun_nltk";
+
+const text = "The quick brown fox jumps".repeat(1000);
+
+// SIMD path (default)
+console.time("SIMD");
+const countSIMD = countTokensAscii(text);
+console.timeEnd("SIMD"); // ~0.2ms
+
+// Scalar fallback
+console.time("Scalar");
+const countScalar = countTokensAsciiScalar(text);
+console.timeEnd("Scalar"); // ~0.8ms
+
+console.log(countSIMD === countScalar); // true
+```
+
+<Info>
+  SIMD path is typically 3-4x faster than scalar for token counting on long texts.
+</Info>
+
+### Token Normalization
+
+#### countNormalizedTokensAscii() - SIMD Path
+
+Counts normalized tokens with SIMD-accelerated character classification.
+
+```typescript
+function countNormalizedTokensAscii(
+  text: string, 
+  removeStopwords?: boolean
+): number
+```
+
+#### countNormalizedTokensAsciiScalar() - Scalar Fallback
+
+Scalar implementation for normalized token counting.
+
+```typescript
+function countNormalizedTokensAsciiScalar(
+  text: string,
+  removeStopwords?: boolean
+): number
+```
+
+#### SIMD Optimizations
+
+The SIMD path accelerates:
+- Lowercase conversion (vectorized case checks)
+- Whitespace detection (parallel byte comparisons)
+- Punctuation filtering (batch character class checks)
+- Stopword matching (SIMD hash lookups)
+
+#### Example
+
+```typescript
+const text = "The QUICK brown Fox Jumps Over the lazy DOG!".repeat(100);
+
+// SIMD-optimized (default)
+const countSIMD = countNormalizedTokensAscii(text, true);
+
+// Scalar fallback
+const countScalar = countNormalizedTokensAsciiScalar(text, true);
+
+console.log(countSIMD === countScalar); // true
+```
+
+## Frequency Distribution Streaming
+
+### NativeFreqDistStream
+
+Streaming frequency distribution with memory-efficient processing.
+
+```typescript
+class NativeFreqDistStream {
+  constructor();
+  update(text: string): void;
+  flush(): void;
+  tokenUniqueCount(): number;
+  bigramUniqueCount(): number;
+  conditionalUniqueCount(): number;
+  tokenFreqDistHash(): Map<bigint, number>;
+  bigramFreqDistHash(): StreamBigramFreq[];
+  conditionalFreqDistHash(): StreamConditionalFreq[];
+  toJson(): string;
+  dispose(): void;
+}
+```
+
+#### Use Case: Large Document Processing
+
+For processing large documents that don't fit in memory:
+
+```typescript
+import { NativeFreqDistStream } from "bun_nltk";
+
+const stream = new NativeFreqDistStream();
+
+// Process document in chunks
+for await (const chunk of readFileInChunks("large.txt")) {
+  stream.update(chunk);
+}
+
+stream.flush();
+
+// Get frequency distributions
+const tokenFreqs = stream.tokenFreqDistHash();
+const bigramFreqs = stream.bigramFreqDistHash();
+
+console.log(`Unique tokens: ${stream.tokenUniqueCount()}`);
+console.log(`Unique bigrams: ${stream.bigramUniqueCount()}`);
+
+stream.dispose();
+```
+
+#### Memory Efficiency
+
+- **Incremental updates**: Process text in chunks without loading entire document
+- **Hash-based deduplication**: O(1) unique token tracking
+- **Native memory management**: Frequency maps stored in Zig, not JS heap
+
+#### Example: Real-time Analysis
+
+```typescript
+const stream = new NativeFreqDistStream();
+
+// Accumulate from multiple sources
+stream.update(tweet1);
+stream.update(tweet2);
+stream.update(tweet3);
+
+// Get statistics anytime
+console.log(`Running unique tokens: ${stream.tokenUniqueCount()}`);
+
+// Continue updating
+stream.update(tweet4);
+stream.flush();
+
+// Export to JSON
+const json = stream.toJson();
+fs.writeFileSync("stats.json", json);
+
+stream.dispose();
+```
+
+## High-Performance APIs
+
+### computeAsciiMetrics()
+
+Computes multiple metrics in a single pass.
+
+```typescript
+function computeAsciiMetrics(text: string, n: number): AsciiMetrics
+
+type AsciiMetrics = {
+  tokens: number;
+  uniqueTokens: number;
+  ngrams: number;
+  uniqueNgrams: number;
+};
+```
+
+#### Performance Benefits
+
+- **Single pass**: One scan through text for all metrics
+- **Cache-friendly**: Minimizes memory access patterns
+- **SIMD-accelerated**: Vectorized text scanning
+
+#### Example
+
+```typescript
+const text = readFileSync("document.txt", "utf-8");
+
+// Efficient: Single pass for all metrics
+const metrics = computeAsciiMetrics(text, 2);
+
+console.log(`Tokens: ${metrics.tokens}`);
+console.log(`Unique: ${metrics.uniqueTokens}`);
+console.log(`Bigrams: ${metrics.ngrams}`);
+console.log(`Unique bigrams: ${metrics.uniqueNgrams}`);
+
+// Inefficient alternative (multiple passes):
+const tokens = countTokensAscii(text);
+const uniqueTokens = countUniqueTokensAscii(text);
+const ngrams = countNgramsAscii(text, 2);
+const uniqueNgrams = countUniqueNgramsAscii(text, 2);
+```
+
+### Collocation Analysis
+
+#### topPmiBigramsAscii()
+
+Finds top-scoring bigrams by Pointwise Mutual Information.
+
+```typescript
+function topPmiBigramsAscii(
+  text: string,
+  topK: number,
+  windowSize?: number
+): PmiBigram[]
+
+type PmiBigram = {
+  leftHash: bigint;
+  rightHash: bigint;
+  score: number;
+};
+```
+
+#### Performance Optimizations
+
+- **Windowed scanning**: Configurable context window
+- **Top-K heap**: O(n log k) for best bigrams
+- **Hash-based**: Avoids string allocations
+
+#### Example
+
+```typescript
+const text = readFileSync("corpus.txt", "utf-8");
+
+// Find top 50 collocations with window=5
+const collocations = topPmiBigramsAscii(text, 50, 5);
+
+collocations.forEach(({ leftHash, rightHash, score }) => {
+  console.log(`Hash pair: ${leftHash}-${rightHash}, PMI: ${score}`);
+});
+```
+
+#### bigramWindowStatsAscii()
+
+Computes complete bigram statistics with windowing.
+
+```typescript
+function bigramWindowStatsAscii(
+  text: string,
+  windowSize?: number
+): BigramWindowStatToken[]
+
+type BigramWindowStatToken = {
+  left: string;
+  right: string;
+  leftId: number;
+  rightId: number;
+  count: number;
+  pmi: number;
+};
+```
+
+#### Example
+
+```typescript
+const stats = bigramWindowStatsAscii("the quick brown fox", 2);
+
+stats.forEach(({ left, right, count, pmi }) => {
+  console.log(`${left} -> ${right}: count=${count}, pmi=${pmi.toFixed(3)}`);
+});
+```
+
+## Zero-Copy APIs
+
+Some native functions return token IDs and hashes instead of strings to avoid allocations.
+
+### tokenFreqDistIdsAscii()
+
+Returns frequency distribution with token IDs for zero-copy processing.
+
+```typescript
+function tokenFreqDistIdsAscii(text: string): TokenFreqDistIds
+
+type TokenFreqDistIds = {
+  tokens: string[];              // Unique tokens
+  counts: number[];              // Frequency counts
+  tokenToId: Map<string, number>; // Token -> ID mapping
+  totalTokens: number;           // Total token count
+};
+```
+
+#### Example
+
+```typescript
+const text = "the quick brown fox jumps over the lazy dog";
+const freqDist = tokenFreqDistIdsAscii(text);
+
+freqDist.tokens.forEach((token, id) => {
+  console.log(`${token} (id=${id}): ${freqDist.counts[id]}`);
+});
+
+console.log(`Total tokens: ${freqDist.totalTokens}`);
+console.log(`Unique tokens: ${freqDist.tokens.length}`);
+```
+
+### Hash-Based APIs
+
+#### tokenFreqDistHashAscii()
+
+Returns frequency distribution using hashes (no string allocation).
+
+```typescript
+function tokenFreqDistHashAscii(text: string): Map<bigint, number>
+```
+
+#### ngramFreqDistHashAscii()
+
+Returns n-gram frequency distribution using hashes.
+
+```typescript
+function ngramFreqDistHashAscii(
+  text: string,
+  n: number
+): Map<bigint, number>
+```
+
+#### Performance Benefits
+
+- **Zero string allocation**: Uses 64-bit hashes instead of strings
+- **Fast comparisons**: Integer comparison vs string comparison
+- **Compact storage**: 8 bytes per hash vs variable string size
+
+#### Example
+
+```typescript
+// Hash-based (fastest)
+const hashFreqs = tokenFreqDistHashAscii(text);
+hashFreqs.forEach((count, hash) => {
+  console.log(`Hash ${hash}: ${count}`);
+});
+
+// ID-based (with strings)
+const idFreqs = tokenFreqDistIdsAscii(text);
+idFreqs.tokens.forEach((token, id) => {
+  console.log(`${token}: ${idFreqs.counts[id]}`);
+});
+```
+
+## Batch Processing
+
+### perceptronPredictBatchNative()
+
+Batch prediction for POS tagging.
+
+```typescript
+function perceptronPredictBatchNative(
+  featureIds: Uint32Array,
+  tokenOffsets: Uint32Array,
+  weights: Float32Array,
+  modelFeatureCount: number,
+  tagCount: number
+): Uint16Array
+```
+
+#### Performance
+
+- **Vectorized dot products**: SIMD-accelerated weight × feature
+- **Batch processing**: Amortizes function call overhead
+- **Zero-copy output**: Returns typed array directly
+
+### linearScoresSparseIdsNative()
+
+Sparse linear model scoring for classification.
+
+```typescript
+function linearScoresSparseIdsNative(input: {
+  docOffsets: Uint32Array;
+  featureIds: Uint32Array;
+  featureValues: Float64Array;
+  classCount: number;
+  featureCount: number;
+  weights: Float64Array;
+  bias: Float64Array;
+}): Float64Array
+```
+
+#### Sparse Format Benefits
+
+- **Memory efficient**: Only store non-zero features
+- **Fast for high-dimensional data**: Skip zero-weight features
+- **Cache-friendly**: Sequential access patterns
+
+## Performance Best Practices
+
+### 1. Use Batch APIs
+
+```typescript
+// Good: Batch processing
+const tags = perceptronPredictBatchNative(
+  featureIds, tokenOffsets, weights, featureCount, tagCount
+);
+
+// Bad: Per-token processing
+for (const token of tokens) {
+  const tag = perceptronPredictSingle(token);
+}
+```
+
+### 2. Reuse Typed Arrays
+
+```typescript
+// Good: Reuse buffers
+const outputBuffer = new Float64Array(classCount);
+for (const doc of docs) {
+  const scores = classifyWithBuffer(doc, outputBuffer);
+}
+
+// Bad: New allocation per call
+for (const doc of docs) {
+  const scores = new Float64Array(classify(doc));
+}
+```
+
+### 3. Use Hash-Based APIs for Large Vocabularies
+
+```typescript
+// Good: Hash-based for large corpus
+const freqs = tokenFreqDistHashAscii(largeCorpus);
+
+// Less efficient: String-based
+const freqsStr = tokenFreqDistIdsAscii(largeCorpus);
+```
+
+### 4. Stream Large Documents
+
+```typescript
+// Good: Streaming for large files
+const stream = new NativeFreqDistStream();
+for (const chunk of readFileInChunks("huge.txt")) {
+  stream.update(chunk);
+}
+
+// Bad: Load entire file
+const text = readFileSync("huge.txt", "utf-8");
+const freqs = tokenFreqDistHashAscii(text);
+```
+
+## SIMD Architecture Details
+
+### Supported Instruction Sets
+
+- **x86_64**: SSE4.2, AVX2, AVX-512 (runtime detection)
+- **ARM64**: NEON (always available on supported platforms)
+- **Fallback**: Scalar implementation for other platforms
+
+### Runtime Detection
+
+The library automatically detects CPU capabilities and selects the best implementation:
+
+```typescript
+// Automatically uses best available implementation
+const count = countTokensAscii(text);
+// -> Uses AVX2 on Intel Haswell+
+// -> Uses NEON on ARM64
+// -> Uses scalar on other platforms
+```
+
+## See Also
+
+- [Native APIs Overview](/api/native/overview) - Library architecture
+- [WASM Runtime](/api/wasm/initialization) - WebAssembly alternative

@@ -1,0 +1,381 @@
+---
+title: "WordNet Integration"
+description: "Access semantic relationships, synsets, and morphological analysis with WordNet"
+---
+
+## Overview
+
+WordNet is a lexical database that groups words into sets of synonyms (synsets) and records semantic relationships. bun_nltk provides three WordNet versions:
+
+- **Mini**: Compact subset for basic usage
+- **Extended**: Larger vocabulary with more relationships
+- **Packed**: Full WordNet in compressed binary format
+
+## Loading WordNet
+
+### Mini WordNet
+
+```typescript
+import { loadWordNetMini } from "bun_nltk";
+
+const wn = loadWordNetMini();
+```
+
+### Extended WordNet
+
+```typescript
+import { loadWordNetExtended } from "bun_nltk";
+
+const wn = loadWordNetExtended();
+```
+
+### Packed WordNet (Full)
+
+```typescript
+import { loadWordNetPacked } from "bun_nltk";
+
+const wn = loadWordNetPacked();
+```
+
+### Custom Path
+
+```typescript
+const wn = loadWordNetMini("/path/to/wordnet_mini.json");
+```
+
+## Working with Synsets
+
+### Find Synsets by Word
+
+```typescript
+const synsets = wn.synsets("dog");
+
+for (const synset of synsets) {
+  console.log(synset.id);       // "dog.n.01"
+  console.log(synset.pos);      // "n" (noun)
+  console.log(synset.lemmas);   // ["dog", "domestic_dog"]
+  console.log(synset.gloss);    // Definition
+  console.log(synset.examples); // Usage examples
+}
+```
+
+### Filter by Part of Speech
+
+```typescript
+const nouns = wn.synsets("run", "n");
+const verbs = wn.synsets("run", "v");
+const adjectives = wn.synsets("good", "a");
+const adverbs = wn.synsets("quickly", "r");
+```
+
+**Part of Speech Tags:**
+- `"n"`: Noun
+- `"v"`: Verb
+- `"a"`: Adjective
+- `"r"`: Adverb
+
+### Get Synset by ID
+
+```typescript
+const synset = wn.synset("dog.n.01");
+
+if (synset) {
+  console.log(synset.gloss);
+  console.log(synset.examples);
+}
+```
+
+## Semantic Relations
+
+### Hypernyms (Is-A Relationship)
+
+Find more general terms:
+
+```typescript
+const dogSynsets = wn.synsets("dog", "n");
+const dog = dogSynsets[0];
+
+const hypernyms = wn.hypernyms(dog);
+for (const hyper of hypernyms) {
+  console.log(hyper.lemmas); // ["canine", "canid"]
+}
+```
+
+### Hyponyms (Instance-Of Relationship)
+
+Find more specific terms:
+
+```typescript
+const hyponyms = wn.hyponyms(dog);
+for (const hypo of hyponyms) {
+  console.log(hypo.lemmas); // ["puppy"], ["working_dog"], etc.
+}
+```
+
+### Similar Terms (Adjectives)
+
+```typescript
+const goodSynsets = wn.synsets("good", "a");
+const good = goodSynsets[0];
+
+const similar = wn.similarTo(good);
+for (const sim of similar) {
+  console.log(sim.lemmas);
+}
+```
+
+### Antonyms (Opposites)
+
+```typescript
+const antonyms = wn.antonyms(good);
+for (const ant of antonyms) {
+  console.log(ant.lemmas); // ["bad"]
+}
+```
+
+## Morphological Analysis
+
+### Morphy - Lemmatization
+
+Find base form of inflected words:
+
+```typescript
+const lemma = wn.morphy("running", "v");
+console.log(lemma); // "run"
+
+const nounLemma = wn.morphy("cats", "n");
+console.log(nounLemma); // "cat"
+
+const adjLemma = wn.morphy("better", "a");
+console.log(adjLemma); // "good"
+```
+
+### All Parts of Speech
+
+```typescript
+const lemma = wn.morphy("running"); // Try all POS
+console.log(lemma); // "run" or null
+```
+
+**Morphological Rules:**
+
+- **Nouns**: cats → cat, dogs → dog,iries → iry
+- **Verbs**: running → run, walked → walk, tries → try
+- **Adjectives**: better → good, biggest → big
+
+## Vocabulary Access
+
+### Get All Lemmas
+
+```typescript
+const allLemmas = wn.lemmas();
+console.log(allLemmas.length);
+```
+
+### Filter Lemmas by POS
+
+```typescript
+const nouns = wn.lemmas("n");
+const verbs = wn.lemmas("v");
+const adjectives = wn.lemmas("a");
+const adverbs = wn.lemmas("r");
+```
+
+## Practical Examples
+
+### Find Synonyms
+
+```typescript
+function getSynonyms(word: string, pos?: WordNetPos): string[] {
+  const wn = loadWordNetMini();
+  const synsets = wn.synsets(word, pos);
+  
+  const synonyms = new Set<string>();
+  for (const synset of synsets) {
+    for (const lemma of synset.lemmas) {
+      if (lemma !== word.toLowerCase()) {
+        synonyms.add(lemma.replace(/_/g, " "));
+      }
+    }
+  }
+  
+  return [...synonyms];
+}
+
+const synonyms = getSynonyms("happy", "a");
+console.log(synonyms); // ["felicitous", "glad", ...]
+```
+
+### Build Semantic Hierarchy
+
+```typescript
+function getHierarchy(word: string, pos: WordNetPos, maxDepth = 3): string[] {
+  const wn = loadWordNetMini();
+  const synsets = wn.synsets(word, pos);
+  if (synsets.length === 0) return [];
+  
+  const hierarchy: string[] = [word];
+  let current = synsets[0];
+  
+  for (let i = 0; i < maxDepth; i++) {
+    const hypernyms = wn.hypernyms(current);
+    if (hypernyms.length === 0) break;
+    
+    current = hypernyms[0];
+    hierarchy.push(current.lemmas[0].replace(/_/g, " "));
+  }
+  
+  return hierarchy;
+}
+
+const hierarchy = getHierarchy("dog", "n");
+console.log(hierarchy.join(" → "));
+// dog → canine → carnivore → mammal
+```
+
+### Word Sense Disambiguation
+
+```typescript
+function disambiguate(word: string, context: string[], pos?: WordNetPos) {
+  const wn = loadWordNetMini();
+  const synsets = wn.synsets(word, pos);
+  
+  let bestMatch = synsets[0];
+  let maxOverlap = 0;
+  
+  for (const synset of synsets) {
+    const glossWords = synset.gloss.toLowerCase().split(/\s+/);
+    const overlap = context.filter(w => glossWords.includes(w)).length;
+    
+    if (overlap > maxOverlap) {
+      maxOverlap = overlap;
+      bestMatch = synset;
+    }
+  }
+  
+  return bestMatch;
+}
+
+const sense = disambiguate("bank", ["river", "water", "shore"], "n");
+console.log(sense?.gloss);
+```
+
+### Semantic Similarity
+
+```typescript
+function pathSimilarity(word1: string, word2: string, pos: WordNetPos): number {
+  const wn = loadWordNetMini();
+  
+  const synsets1 = wn.synsets(word1, pos);
+  const synsets2 = wn.synsets(word2, pos);
+  
+  if (synsets1.length === 0 || synsets2.length === 0) return 0;
+  
+  // Find common hypernyms (simplified)
+  const hyper1 = wn.hypernyms(synsets1[0]);
+  const hyper2 = wn.hypernyms(synsets2[0]);
+  
+  const ids1 = new Set(hyper1.map(s => s.id));
+  const hasCommon = hyper2.some(s => ids1.has(s.id));
+  
+  return hasCommon ? 0.8 : 0.2;
+}
+
+const similarity = pathSimilarity("dog", "cat", "n");
+console.log(similarity); // Higher = more similar
+```
+
+### Expand Query Terms
+
+```typescript
+function expandQuery(query: string): string[] {
+  const wn = loadWordNetMini();
+  const words = query.toLowerCase().split(/\s+/);
+  const expanded = new Set(words);
+  
+  for (const word of words) {
+    const lemma = wn.morphy(word);
+    if (lemma) expanded.add(lemma);
+    
+    const synsets = wn.synsets(word);
+    for (const synset of synsets.slice(0, 1)) {
+      for (const synonym of synset.lemmas.slice(0, 3)) {
+        expanded.add(synonym.replace(/_/g, " "));
+      }
+    }
+  }
+  
+  return [...expanded];
+}
+
+const expanded = expandQuery("running dogs");
+console.log(expanded);
+```
+
+## Synset Data Structure
+
+```typescript
+export type WordNetSynset = {
+  id: string;           // "dog.n.01"
+  pos: WordNetPos;      // "n" | "v" | "a" | "r"
+  lemmas: string[];     // ["dog", "domestic_dog"]
+  gloss: string;        // Definition
+  examples: string[];   // Usage examples
+  hypernyms: string[];  // Parent synset IDs
+  hyponyms: string[];   // Child synset IDs
+  similarTo: string[];  // Similar synset IDs (adjectives)
+  antonyms: string[];   // Opposite synset IDs
+};
+```
+
+## Packed Format Details
+
+The packed WordNet uses a binary format:
+
+```
+[Magic: "BNWN1"][Length: uint32][JSON payload]
+```
+
+- **Header**: 5-byte magic string
+- **Length**: 4-byte payload size
+- **Payload**: Compressed JSON data
+
+```typescript
+const wn = loadWordNetPacked(); // Loads from .bin file
+```
+
+## Performance Notes
+
+- All loaders cache results (singleton pattern)
+- Morphy uses native code optimization
+- Lookups use hash maps for O(1) access
+- Packed format reduces disk I/O
+
+```typescript
+// First call loads from disk
+const wn1 = loadWordNetMini();
+
+// Second call returns cached instance
+const wn2 = loadWordNetMini();
+
+console.log(wn1 === wn2); // true
+```
+
+## API Reference
+
+### Loading Functions
+
+- **`loadWordNetMini(path?)`** - Load mini WordNet
+- **`loadWordNetExtended(path?)`** - Load extended WordNet
+- **`loadWordNetPacked(path?)`** - Load packed WordNet
+
+### WordNet Methods
+
+- **`synset(id)`** - Get synset by ID
+- **`synsets(word, pos?)`** - Find synsets for word
+- **`lemmas(pos?)`** - Get all lemmas
+- **`morphy(word, pos?)`** - Lemmatize word
+- **`hypernyms(synset)`** - Get parent concepts
+- **`hyponyms(synset)`** - Get child concepts
+- **`similarTo(synset)`** - Get similar synsets
+- **`antonyms(synset)`** - Get opposite synsets

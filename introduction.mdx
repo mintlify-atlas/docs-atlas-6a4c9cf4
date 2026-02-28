@@ -1,0 +1,104 @@
+---
+title: Introduction
+description: High-performance NLP primitives for Bun and Node.js with Zig native and WASM backends
+---
+
+# Introduction to bun_nltk
+
+bun_nltk is a high-performance NLP library that brings the power of native Zig code to JavaScript runtimes. Built for speed and efficiency, it provides essential natural language processing primitives with performance that rivals Python's NLTK while maintaining a simple, modern API.
+
+## Why bun_nltk?
+
+Traditional JavaScript NLP libraries struggle with performance on large-scale text processing tasks. bun_nltk solves this by leveraging:
+
+- **Native Zig Performance**: Core operations run in compiled Zig code, delivering 3-643x faster performance than Python NLTK
+- **WASM Fallback**: Works everywhere with WebAssembly runtime when native binaries aren't available
+- **Zero Dependencies**: No complex installation or build steps - just install and use
+- **Modern API**: Clean TypeScript interfaces with full type safety
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Tokenization" icon="scissors">
+    Word and sentence tokenization with PTB-style contractions, tweet tokenization, and trainable Punkt models
+  </Card>
+  
+  <Card title="Text analysis" icon="chart-line">
+    Token counting, n-gram generation, frequency distributions, PMI collocation scoring, and SIMD-accelerated operations
+  </Card>
+  
+  <Card title="POS tagging" icon="tags">
+    Part-of-speech tagging with perceptron models and regex-based heuristic taggers
+  </Card>
+  
+  <Card title="Text classification" icon="brain">
+    Naive Bayes, decision trees, logistic regression, and linear SVM classifiers with sparse feature vectorization
+  </Card>
+  
+  <Card title="Parsing" icon="project-diagram">
+    CFG chart parser, PCFG probabilistic parser, Earley parser, and dependency parser with grammar support
+  </Card>
+  
+  <Card title="Language models" icon="language">
+    N-gram language models with MLE, Lidstone, and Kneser-Ney interpolation smoothing
+  </Card>
+  
+  <Card title="WordNet integration" icon="book">
+    Synset lookup, relation traversal, and morphy-style inflection recovery with packed binary format
+  </Card>
+  
+  <Card title="Corpus utilities" icon="database">
+    Corpus reader framework with support for Brown, CoNLL formats, and external corpus bundles
+  </Card>
+</CardGroup>
+
+## Performance benchmarks
+
+bun_nltk delivers exceptional performance across all operations:
+
+| Operation | bun_nltk | Python NLTK | Speedup |
+|-----------|----------|-------------|----------|
+| Token + n-gram counting | 2.77s | 10.07s | **3.64x** |
+| PMI collocations | 2.09s | 23.95s | **11.46x** |
+| Porter stemming | 11.94s | 120.10s | **10.06x** |
+| Punkt tokenizer | 0.08s | 1.35s | **15.87x** |
+| Chunk parser | 0.002s | 1.55s | **643x** |
+| WordNet lookup | 0.001s | 0.08s | **91.55x** |
+| Earley parser | 0.11s | 4.65s | **40.47x** |
+
+*Benchmarks run on 8-64MB synthetic datasets. See README for full methodology.*
+
+## Supported platforms
+
+bun_nltk ships with prebuilt native binaries for:
+
+- Linux x64
+- Windows x64
+
+All platforms also support the WASM runtime as a fallback, including:
+
+- macOS (arm64, x64)
+- Browser environments
+- Any JavaScript runtime with WASM support
+
+## Get started
+
+<CardGroup cols={3}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install bun_nltk with npm, bun, or pnpm
+  </Card>
+  
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Run your first NLP operations in minutes
+  </Card>
+  
+  <Card title="API reference" icon="code" href="/api-reference">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>
+
+## Community and support
+
+- **GitHub**: [Seyamalam/bun_nltk](https://github.com/Seyamalam/bun_nltk)
+- **Issues**: [Report bugs or request features](https://github.com/Seyamalam/bun_nltk/issues)
+- **License**: Apache 2.0

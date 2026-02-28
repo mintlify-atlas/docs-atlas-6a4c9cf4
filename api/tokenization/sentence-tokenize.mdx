@@ -1,0 +1,113 @@
+---
+title: 'Sentence Tokenization'
+description: 'Split text into sentences with abbreviation handling'
+---
+
+## sentenceTokenizeSubset
+
+Tokenize text into sentences using heuristic rules and abbreviation detection.
+
+<ParamField path="text" type="string" required>
+  The text to split into sentences
+</ParamField>
+
+<ParamField path="options" type="SentenceTokenizerOptions">
+  Optional configuration for sentence tokenization
+</ParamField>
+
+<ParamField path="options.abbreviations" type="Iterable<string>">
+  Additional abbreviations to recognize (e.g., ["dr", "prof", "inc"])
+</ParamField>
+
+<ParamField path="options.learnAbbreviations" type="boolean" default="true">
+  Automatically learn abbreviations from the text
+</ParamField>
+
+<ParamField path="options.orthographicHeuristics" type="boolean" default="true">
+  Use orthographic features (capitalization patterns) to improve sentence detection
+</ParamField>
+
+<ResponseField name="sentences" type="string[]">
+  Array of sentence strings
+</ResponseField>
+
+```typescript
+import { sentenceTokenizeSubset } from 'bun_nltk';
+
+const text = "Dr. Smith works at U.S. Corp. He likes his job. Does he?";
+const sentences = sentenceTokenizeSubset(text);
+console.log(sentences);
+// [
+//   "Dr. Smith works at U.S. Corp.",
+//   "He likes his job.",
+//   "Does he?"
+// ]
+
+// Add custom abbreviations
+const text2 = "The meeting is at 3 p.m. in Bldg. 5.";
+const sentences2 = sentenceTokenizeSubset(text2, {
+  abbreviations: ["bldg"]
+});
+console.log(sentences2);
+// ["The meeting is at 3 p.m. in Bldg. 5."]
+
+// Disable abbreviation learning
+const sentences3 = sentenceTokenizeSubset(text, {
+  learnAbbreviations: false
+});
+```
+
+### Default Abbreviations
+
+The tokenizer recognizes common abbreviations:
+- Titles: `mr`, `mrs`, `ms`, `dr`, `prof`, `sr`, `jr`
+- General: `st`, `vs`, `etc`, `e.g`, `i.e`
+- Geographic: `u.s`, `u.k`
+- Time: `a.m`, `p.m`
+
+### Features
+
+- **Abbreviation Detection**: Won't split on periods after known abbreviations
+- **Number Handling**: Won't split on decimal points in numbers (e.g., "3.14")
+- **Ellipsis Support**: Handles "..." correctly
+- **Capitalization Heuristics**: Uses next word's capitalization to determine sentence boundaries
+
+## sentenceTokenizePunkt
+
+Tokenize sentences using a Punkt sentence segmentation model.
+
+<ParamField path="text" type="string" required>
+  The text to split into sentences
+</ParamField>
+
+<ParamField path="model" type="PunktModelSerialized">
+  Optional trained Punkt model. If omitted, uses the default model or native implementation.
+</ParamField>
+
+<ResponseField name="sentences" type="string[]">
+  Array of sentence strings
+</ResponseField>
+
+```typescript
+import { sentenceTokenizePunkt, trainPunktModel } from 'bun_nltk';
+
+// Use default model
+const text = "Dr. Smith arrived. He was late.";
+const sentences = sentenceTokenizePunkt(text);
+console.log(sentences);
+// ["Dr. Smith arrived.", "He was late."]
+
+// Train a custom model on domain-specific text
+const trainingText = `
+  Dr. Johnson published his findings. Prof. Lee agreed with the results.
+  The research was funded by N.A.S.A. and U.S.D.A. agencies.
+`;
+const customModel = trainPunktModel(trainingText);
+const sentences2 = sentenceTokenizePunkt(text, customModel);
+```
+
+### Notes
+
+- When `model` is omitted, uses fast native Punkt implementation
+- Custom models allow domain-specific abbreviation and collocation learning
+- See [punkt.mdx](./punkt) for model training details

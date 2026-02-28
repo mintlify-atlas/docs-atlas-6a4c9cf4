@@ -1,0 +1,273 @@
+---
+title: Naive Bayes Classifier
+description: Multinomial Naive Bayes text classifier with Laplace smoothing
+---
+
+## NaiveBayesTextClassifier
+
+A multinomial Naive Bayes classifier for text classification. Uses Laplace smoothing and supports native acceleration for fast inference.
+
+### Constructor
+
+```typescript
+new NaiveBayesTextClassifier(options?: { smoothing?: number })
+```
+
+**Parameters:**
+- `smoothing` (optional): Laplace smoothing parameter (default: 1.0, minimum: 1e-9)
+
+**Example:**
+```typescript
+import { NaiveBayesTextClassifier } from "bun_nltk";
+
+const classifier = new NaiveBayesTextClassifier({ smoothing: 1.0 });
+```
+
+### Methods
+
+#### train()
+
+Train the classifier on labeled examples.
+
+```typescript
+train(examples: NaiveBayesExample[]): this
+```
+
+**Parameters:**
+- `examples`: Array of `{ label: string, text: string }` objects
+
+**Returns:** The classifier instance (for chaining)
+
+**Example:**
+```typescript
+classifier.train([
+  { label: "spam", text: "Buy now! Limited offer!" },
+  { label: "ham", text: "Meeting at 3pm today" },
+  { label: "spam", text: "Click here to win prizes" },
+]);
+```
+
+#### classify()
+
+Predict the most likely label for a text.
+
+```typescript
+classify(text: string): string
+```
+
+**Parameters:**
+- `text`: The text to classify
+
+**Returns:** The predicted label
+
+**Example:**
+```typescript
+const label = classifier.classify("Congratulations! You won!");
+console.log(label); // "spam"
+```
+
+#### predict()
+
+Get ranked predictions with log probabilities for all labels.
+
+```typescript
+predict(text: string): NaiveBayesPrediction[]
+```
+
+**Returns:** Array of `{ label: string, logProb: number }` sorted by probability (descending)
+
+**Example:**
+```typescript
+const predictions = classifier.predict("See you tomorrow");
+console.log(predictions);
+// [
+//   { label: "ham", logProb: -2.3 },
+//   { label: "spam", logProb: -4.8 }
+// ]
+```
+
+#### evaluate()
+
+Evaluate the classifier on test examples.
+
+```typescript
+evaluate(examples: NaiveBayesExample[]): {
+  accuracy: number;
+  total: number;
+  correct: number;
+}
+```
+
+**Parameters:**
+- `examples`: Test examples with known labels
+
+**Returns:** Object with accuracy (0-1), total count, and correct count
+
+**Example:**
+```typescript
+const results = classifier.evaluate(testData);
+console.log(`Accuracy: ${(results.accuracy * 100).toFixed(1)}%`);
+// Accuracy: 94.2%
+```
+
+#### labels()
+
+Get all labels the classifier has learned.
+
+```typescript
+labels(): string[]
+```
+
+**Returns:** Array of label strings
+
+#### toJSON()
+
+Serialize the classifier to JSON.
+
+```typescript
+toJSON(): NaiveBayesSerialized
+```
+
+**Returns:** Serialized model object
+
+**Example:**
+```typescript
+const modelData = classifier.toJSON();
+await Bun.write("model.json", JSON.stringify(modelData));
+```
+
+#### fromSerialized()
+
+Load a classifier from serialized data.
+
+```typescript
+static fromSerialized(payload: NaiveBayesSerialized): NaiveBayesTextClassifier
+```
+
+**Parameters:**
+- `payload`: Serialized model data
+
+**Returns:** Loaded classifier instance
+
+**Example:**
+```typescript
+const data = await Bun.file("model.json").json();
+const classifier = NaiveBayesTextClassifier.fromSerialized(data);
+```
+
+## Helper Functions
+
+### trainNaiveBayesTextClassifier()
+
+Train a Naive Bayes classifier in one function call.
+
+```typescript
+trainNaiveBayesTextClassifier(
+  examples: NaiveBayesExample[],
+  options?: { smoothing?: number }
+): NaiveBayesTextClassifier
+```
+
+**Example:**
+```typescript
+import { trainNaiveBayesTextClassifier } from "bun_nltk";
+
+const classifier = trainNaiveBayesTextClassifier(
+  [
+    { label: "positive", text: "I love this product!" },
+    { label: "negative", text: "Terrible quality" },
+    { label: "positive", text: "Highly recommended" },
+  ],
+  { smoothing: 1.0 }
+);
+```
+
+### loadNaiveBayesTextClassifier()
+
+Load a serialized Naive Bayes classifier.
+
+```typescript
+loadNaiveBayesTextClassifier(
+  payload: NaiveBayesSerialized
+): NaiveBayesTextClassifier
+```
+
+**Example:**
+```typescript
+import { loadNaiveBayesTextClassifier } from "bun_nltk";
+
+const data = await Bun.file("model.json").json();
+const classifier = loadNaiveBayesTextClassifier(data);
+```
+
+## Types
+
+### NaiveBayesExample
+
+```typescript
+type NaiveBayesExample = {
+  label: string;
+  text: string;
+};
+```
+
+### NaiveBayesPrediction
+
+```typescript
+type NaiveBayesPrediction = {
+  label: string;
+  logProb: number;
+};
+```
+
+### NaiveBayesSerialized
+
+```typescript
+type NaiveBayesSerialized = {
+  version: number;
+  smoothing: number;
+  totalDocs: number;
+  labels: string[];
+  labelDocCounts: number[];
+  labelTokenTotals: number[];
+  vocabulary: string[];
+  tokenCountsByLabel: Array<Array<string | number>>;
+};
+```
+
+## Complete Example
+
+```typescript
+import { trainNaiveBayesTextClassifier } from "bun_nltk";
+
+// Training data
+const trainingData = [
+  { label: "tech", text: "New smartphone features amazing camera" },
+  { label: "sports", text: "Team wins championship after overtime" },
+  { label: "tech", text: "Software update improves performance" },
+  { label: "sports", text: "Player breaks record in final game" },
+];
+
+// Train classifier
+const classifier = trainNaiveBayesTextClassifier(trainingData);
+
+// Classify new text
+const result = classifier.classify("Latest laptop has powerful processor");
+console.log(result); // "tech"
+
+// Get probabilities
+const predictions = classifier.predict("Latest laptop has powerful processor");
+console.log(predictions);
+
+// Evaluate on test set
+const testData = [
+  { label: "tech", text: "New tablet released today" },
+  { label: "sports", text: "Coach announces retirement" },
+];
+const metrics = classifier.evaluate(testData);
+console.log(`Accuracy: ${(metrics.accuracy * 100).toFixed(1)}%`);
+
+// Save model
+const modelData = classifier.toJSON();
+await Bun.write("naive-bayes-model.json", JSON.stringify(modelData));
+```

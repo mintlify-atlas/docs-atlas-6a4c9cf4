@@ -1,0 +1,394 @@
+---
+title: Maximum Entropy Classifier
+description: Maximum entropy (multinomial logistic regression) text classifier
+---
+
+## MaxEntTextClassifier
+
+Maximum Entropy classifier (also known as multinomial logistic regression) that optimizes a multi-class softmax model with L2 regularization.
+
+### Constructor
+
+```typescript
+new MaxEntTextClassifier(options?: {
+  epochs?: number;
+  learningRate?: number;
+  l2?: number;
+  maxFeatures?: number;
+})
+```
+
+**Parameters:**
+- `epochs` (optional): Number of training iterations (default: 25, minimum: 1)
+- `learningRate` (optional): Learning rate for gradient descent (default: 0.15, minimum: 1e-6)
+- `l2` (optional): L2 regularization strength (default: 1e-4, minimum: 0)
+- `maxFeatures` (optional): Maximum vocabulary size (default: 12000, minimum: 100)
+
+**Example:**
+```typescript
+import { MaxEntTextClassifier } from "bun_nltk";
+
+const classifier = new MaxEntTextClassifier({
+  epochs: 30,
+  learningRate: 0.1,
+  l2: 5e-4,
+  maxFeatures: 10000,
+});
+```
+
+### Methods
+
+#### train()
+
+Train the maximum entropy model on labeled examples.
+
+```typescript
+train(examples: MaxEntExample[]): this
+```
+
+**Parameters:**
+- `examples`: Array of `{ label: string, text: string }` objects
+
+**Returns:** The classifier instance (for chaining)
+
+**Throws:**
+- Error if examples array is empty
+- Error if fewer than 2 unique labels
+- Error if vocabulary is empty after processing
+
+**Example:**
+```typescript
+classifier.train([
+  { label: "weather", text: "It's sunny and warm today" },
+  { label: "greeting", text: "Hello, how are you?" },
+  { label: "weather", text: "Rain expected this afternoon" },
+  { label: "farewell", text: "Goodbye, see you later" },
+]);
+```
+
+#### classify()
+
+Predict the most likely label for a text.
+
+```typescript
+classify(text: string): string
+```
+
+**Parameters:**
+- `text`: The text to classify
+
+**Returns:** The predicted label
+
+**Throws:** Error if classifier has no labels
+
+**Example:**
+```typescript
+const label = classifier.classify("The forecast shows clouds");
+console.log(label); // "weather"
+```
+
+#### predict()
+
+Get ranked predictions with probabilities and logits for all labels.
+
+```typescript
+predict(text: string): MaxEntPrediction[]
+```
+
+**Returns:** Array of `{ label: string, probability: number, logit: number }` sorted by probability (descending)
+
+**Example:**
+```typescript
+const predictions = classifier.predict("Hi there!");
+console.log(predictions);
+// [
+//   { label: "greeting", probability: 0.82, logit: 1.58 },
+//   { label: "farewell", probability: 0.11, logit: -0.73 },
+//   { label: "weather", probability: 0.07, logit: -1.12 }
+// ]
+```
+
+#### evaluate()
+
+Evaluate the classifier on test examples.
+
+```typescript
+evaluate(examples: MaxEntExample[]): {
+  accuracy: number;
+  total: number;
+  correct: number;
+}
+```
+
+**Parameters:**
+- `examples`: Test examples with known labels
+
+**Returns:** Object with accuracy (0-1), total count, and correct count
+
+**Example:**
+```typescript
+const results = classifier.evaluate(testData);
+console.log(`Accuracy: ${(results.accuracy * 100).toFixed(1)}%`);
+console.log(`${results.correct} correct out of ${results.total}`);
+```
+
+#### labelsList()
+
+Get all labels the classifier has learned.
+
+```typescript
+labelsList(): string[]
+```
+
+**Returns:** Array of label strings (copy of internal array)
+
+**Example:**
+```typescript
+const labels = classifier.labelsList();
+console.log(labels); // ["farewell", "greeting", "weather"]
+```
+
+#### toJSON()
+
+Serialize the classifier to JSON.
+
+```typescript
+toJSON(): MaxEntSerialized
+```
+
+**Returns:** Serialized model object
+
+**Example:**
+```typescript
+const modelData = classifier.toJSON();
+await Bun.write("maxent-model.json", JSON.stringify(modelData));
+```
+
+#### fromSerialized()
+
+Load a classifier from serialized data.
+
+```typescript
+static fromSerialized(payload: MaxEntSerialized): MaxEntTextClassifier
+```
+
+**Parameters:**
+- `payload`: Serialized model data (version must be 1)
+
+**Returns:** Loaded classifier instance
+
+**Throws:**
+- Error if version is unsupported
+- Error if payload structure is invalid
+
+**Example:**
+```typescript
+const data = await Bun.file("maxent-model.json").json();
+const classifier = MaxEntTextClassifier.fromSerialized(data);
+```
+
+## Helper Functions
+
+### trainMaxEntTextClassifier()
+
+Train a maximum entropy classifier in one function call.
+
+```typescript
+trainMaxEntTextClassifier(
+  examples: MaxEntExample[],
+  options?: {
+    epochs?: number;
+    learningRate?: number;
+    l2?: number;
+    maxFeatures?: number;
+  }
+): MaxEntTextClassifier
+```
+
+**Example:**
+```typescript
+import { trainMaxEntTextClassifier } from "bun_nltk";
+
+const classifier = trainMaxEntTextClassifier(
+  [
+    { label: "bug", text: "Application crashes on startup" },
+    { label: "feature", text: "Add dark mode support" },
+    { label: "question", text: "How do I configure settings?" },
+    { label: "bug", text: "Error message displays incorrectly" },
+  ],
+  {
+    epochs: 30,
+    learningRate: 0.12,
+    maxFeatures: 8000,
+  }
+);
+```
+
+### loadMaxEntTextClassifier()
+
+Load a serialized maximum entropy classifier.
+
+```typescript
+loadMaxEntTextClassifier(
+  payload: MaxEntSerialized
+): MaxEntTextClassifier
+```
+
+**Example:**
+```typescript
+import { loadMaxEntTextClassifier } from "bun_nltk";
+
+const data = await Bun.file("maxent-model.json").json();
+const classifier = loadMaxEntTextClassifier(data);
+```
+
+## Types
+
+### MaxEntExample
+
+```typescript
+type MaxEntExample = {
+  label: string;
+  text: string;
+};
+```
+
+### MaxEntPrediction
+
+```typescript
+type MaxEntPrediction = {
+  label: string;
+  probability: number; // Softmax probability (0-1)
+  logit: number;       // Raw score before softmax
+};
+```
+
+### MaxEntSerialized
+
+```typescript
+type MaxEntSerialized = {
+  version: number;
+  labels: string[];
+  vocabulary: string[];
+  weights: number[][];  // [numLabels][vocabSize]
+  bias: number[];       // [numLabels]
+  options: {
+    epochs: number;
+    learningRate: number;
+    l2: number;
+    maxFeatures: number;
+  };
+};
+```
+
+## Complete Example
+
+```typescript
+import {
+  trainMaxEntTextClassifier,
+  loadMaxEntTextClassifier,
+} from "bun_nltk";
+
+// Training data for intent classification
+const trainingData = [
+  { label: "book_flight", text: "I want to book a flight to Paris" },
+  { label: "cancel_booking", text: "Cancel my reservation please" },
+  { label: "check_status", text: "What's the status of my order?" },
+  { label: "book_flight", text: "Reserve a ticket to London tomorrow" },
+  { label: "cancel_booking", text: "I need to cancel my appointment" },
+  { label: "check_status", text: "Where is my package?" },
+  { label: "book_flight", text: "Schedule a flight for next week" },
+  { label: "cancel_booking", text: "Remove my booking" },
+];
+
+// Train with custom hyperparameters
+const classifier = trainMaxEntTextClassifier(trainingData, {
+  epochs: 40,
+  learningRate: 0.2,
+  l2: 1e-4,
+  maxFeatures: 5000,
+});
+
+// Classify user input
+const userText = "I'd like to fly to Tokyo";
+const intent = classifier.classify(userText);
+console.log(`Detected intent: ${intent}`); // "book_flight"
+
+// Get confidence scores
+const predictions = classifier.predict(userText);
+for (const pred of predictions) {
+  console.log(
+    `${pred.label}: ${(pred.probability * 100).toFixed(1)}% (logit: ${pred.logit.toFixed(2)})`
+  );
+}
+// Output:
+// book_flight: 87.3% (logit: 1.94)
+// check_status: 8.2% (logit: -0.68)
+// cancel_booking: 4.5% (logit: -1.23)
+
+// Evaluate on test set
+const testData = [
+  { label: "book_flight", text: "Get me a plane ticket" },
+  { label: "cancel_booking", text: "Delete my reservation" },
+  { label: "check_status", text: "Track my order" },
+];
+
+const metrics = classifier.evaluate(testData);
+console.log(`Test accuracy: ${(metrics.accuracy * 100).toFixed(1)}%`);
+console.log(`Correct: ${metrics.correct}/${metrics.total}`);
+
+// Check available labels
+const labels = classifier.labelsList();
+console.log(`Trained on ${labels.length} intents:`, labels);
+
+// Save model
+const modelData = classifier.toJSON();
+await Bun.write("intent-classifier.json", JSON.stringify(modelData));
+
+// Load model later
+const loadedData = await Bun.file("intent-classifier.json").json();
+const loadedClassifier = loadMaxEntTextClassifier(loadedData);
+console.log(loadedClassifier.classify("Book a flight for me"));
+// "book_flight"
+```
+
+## Training Options Guide
+
+### Epochs
+
+Number of passes through the training data.
+- **Low (10-15):** Fast training, may underfit
+- **Medium (25-30):** Good default for most tasks
+- **High (40+):** Better accuracy on complex tasks, risk of overfitting
+
+### Learning Rate
+
+Controls step size in gradient descent.
+- **Low (0.01-0.05):** Stable but slow convergence
+- **Medium (0.1-0.2):** Good default balance
+- **High (0.3+):** Fast but may overshoot optimal weights
+
+### L2 Regularization
+
+Prevents overfitting by penalizing large weights.
+- **None (0):** No regularization, may overfit
+- **Light (1e-5 to 1e-4):** Recommended for most tasks
+- **Heavy (1e-3+):** Strong regularization, may underfit
+
+### Max Features
+
+Limits vocabulary size to most frequent tokens.
+- **Small (1000-5000):** Fast, works for simple tasks
+- **Medium (8000-12000):** Good default
+- **Large (15000+):** Better for complex text, slower training
+
+## How It Works
+
+1. **Tokenizes** text using ASCII alphanumeric regex
+2. **Builds vocabulary** of most frequent tokens up to `maxFeatures`
+3. **Encodes** documents as sparse token count vectors
+4. **Trains** using stochastic gradient descent:
+   - Computes softmax probabilities for all labels
+   - Updates weights based on prediction error
+   - Applies L2 regularization to prevent overfitting
+5. **Predicts** by computing weighted sum of token counts + bias, then applying softmax

@@ -1,0 +1,305 @@
+---
+title: "Chunking"
+description: "Extract phrases and named entities using regular expression chunk parsers"
+---
+
+## Overview
+
+Chunking identifies non-overlapping linguistic structures like noun phrases, verb phrases, or named entities from part-of-speech tagged text.
+
+## Regexp Chunk Parser
+
+### Basic Usage
+
+```typescript
+import { regexpChunkParse } from "bun_nltk";
+
+const tagged = [
+  { token: "the", tag: "DT" },
+  { token: "big", tag: "JJ" },
+  { token: "dog", tag: "NN" },
+  { token: "barked", tag: "VBD" }
+];
+
+const grammar = `
+NP: {<DT>?<JJ>*<NN>}
+VP: {<VBD|VBZ>}
+`;
+
+const tree = regexpChunkParse(tagged, grammar);
+console.log(tree);
+```
+
+**Output:**
+```javascript
+[
+  {
+    kind: "chunk",
+    label: "NP",
+    tokens: [
+      { token: "the", tag: "DT" },
+      { token: "big", tag: "JJ" },
+      { token: "dog", tag: "NN" }
+    ]
+  },
+  {
+    kind: "chunk",
+    label: "VP",
+    tokens: [{ token: "barked", tag: "VBD" }]
+  }
+]
+```
+
+## Grammar Syntax
+
+### Rule Format
+
+```
+LABEL: {<TAG_PATTERN><TAG_PATTERN>...}
+```
+
+- **LABEL**: Chunk label (alphanumeric + underscore)
+- **TAG_PATTERN**: Regular expression in angle brackets `<...>`
+- **Quantifiers**: `?` (0-1), `*` (0+), `+` (1+)
+
+### Tag Patterns
+
+```typescript
+const grammar = `
+# Noun phrases
+NP: {<DT>?<JJ>*<NN.*>+}
+
+# Verb phrases  
+VP: {<VB.*><RB>*}
+
+# Prepositional phrases
+PP: {<IN><DT>?<NN.*>+}
+`;
+```
+
+### Pattern Examples
+
+| Pattern | Matches |
+|---------|----------|
+| `<NN>` | Exactly "NN" |
+| `<NN.*>` | "NN", "NNS", "NNP", "NNPS" |
+| `<VB\|VBD\|VBZ>` | "VB" or "VBD" or "VBZ" |
+| `<DT>?` | Optional determiner |
+| `<JJ>*` | Zero or more adjectives |
+| `<NN>+` | One or more nouns |
+
+## Advanced Chunking
+
+### Named Entity Recognition
+
+```typescript
+import { posTag, wordTokenizeSubset, regexpChunkParse } from "bun_nltk";
+
+const text = "Barack Obama visited New York City";
+const tokens = wordTokenizeSubset(text);
+const tagged = posTag(tokens);
+
+const nerGrammar = `
+PERSON: {<NNP><NNP>}
+LOCATION: {<NNP><NNP><NNP>}
+`;
+
+const entities = regexpChunkParse(tagged, nerGrammar);
+```
+
+### Multi-Rule Grammars
+
+```typescript
+const grammar = `
+# Base noun phrase
+NP: {<DT|PRP\$>?<JJ>*<NN.*>+}
+
+# Verb phrase
+VP: {<MD>?<VB.*><RB>*}
+
+# Prepositional phrase
+PP: {<IN><NP>}
+
+# Clause
+CLAUSE: {<NP><VP><NP|PP>*}
+`;
+```
+
+## IOB Format Conversion
+
+### Chunk Tree to IOB
+
+Convert chunk trees to Inside-Outside-Begin (IOB) format:
+
+```typescript
+import { chunkTreeToIob } from "bun_nltk";
+
+const tree = regexpChunkParse(tagged, grammar);
+const iob = chunkTreeToIob(tree);
+
+console.log(iob);
+```
+
+**Output:**
+```javascript
+[
+  { token: "the", tag: "DT", iob: "B-NP" },
+  { token: "big", tag: "JJ", iob: "I-NP" },
+  { token: "dog", tag: "NN", iob: "I-NP" },
+  { token: "barked", tag: "VBD", iob: "B-VP" }
+]
+```
+
+### IOB Tags
+
+- **B-LABEL**: Beginning of chunk
+- **I-LABEL**: Inside chunk (continuation)
+- **O**: Outside any chunk
+
+## Type Definitions
+
+```typescript
+export type TaggedToken = {
+  token: string;
+  tag: string;
+};
+
+export type ChunkNode = {
+  kind: "chunk";
+  label: string;
+  tokens: TaggedToken[];
+};
+
+export type ChunkElement = TaggedToken | ChunkNode;
+
+export type IobRow = {
+  token: string;
+  tag: string;
+  iob: string;
+};
+```
+
+## Practical Examples
+
+### Extract Noun Phrases
+
+```typescript
+import { posTag, wordTokenizeSubset, regexpChunkParse } from "bun_nltk";
+
+function extractNounPhrases(text: string): string[] {
+  const tokens = wordTokenizeSubset(text);
+  const tagged = posTag(tokens);
+  
+  const grammar = `NP: {<DT>?<JJ>*<NN.*>+}`;
+  const chunks = regexpChunkParse(tagged, grammar);
+  
+  return chunks
+    .filter(node => typeof node !== "string" && node.kind === "chunk")
+    .map(node => node.tokens.map(t => t.token).join(" "));
+}
+
+const text = "The quick brown fox jumped over the lazy dog";
+const nps = extractNounPhrases(text);
+console.log(nps); // ["The quick brown fox", "the lazy dog"]
+```
+
+### Extract Action Phrases
+
+```typescript
+function extractActions(text: string) {
+  const tokens = wordTokenizeSubset(text);
+  const tagged = posTag(tokens);
+  
+  const grammar = `
+ACTION: {<VB.*><DT>?<JJ>*<NN.*>+}
+  `;
+  
+  const chunks = regexpChunkParse(tagged, grammar);
+  
+  return chunks
+    .filter(node => typeof node !== "string" && node.kind === "chunk")
+    .map(node => ({
+      action: node.tokens.map(t => t.token).join(" "),
+      tokens: node.tokens
+    }));
+}
+```
+
+### Custom Entity Types
+
+```typescript
+const domainGrammar = `
+# Product names (adjective + noun)
+PRODUCT: {<JJ><NN>}
+
+# Monetary amounts  
+MONEY: {<\$><CD>}
+
+# Dates
+DATE: {<NNP><CD><,>?<CD>?}
+`;
+
+const tagged = posTag(wordTokenizeSubset("iPhone 15 costs $799 on September 22, 2023"));
+const entities = regexpChunkParse(tagged, domainGrammar);
+```
+
+## Performance Notes
+
+The chunker uses native code optimization for better performance:
+
+- Pattern compilation is cached
+- Tag matching uses precompiled regex
+- IOB encoding uses efficient native implementation
+
+```typescript
+// Native optimization automatically enabled
+const chunks = regexpChunkParse(tagged, grammar);
+```
+
+## Working with Chunk Trees
+
+### Filter Chunks by Label
+
+```typescript
+function getChunksByLabel(tree: ChunkElement[], label: string) {
+  return tree.filter(node => 
+    typeof node !== "string" && 
+    node.kind === "chunk" && 
+    node.label === label
+  );
+}
+
+const nounPhrases = getChunksByLabel(tree, "NP");
+```
+
+### Extract Chunk Text
+
+```typescript
+function chunkToText(chunk: ChunkElement): string {
+  if (typeof chunk === "object" && "kind" in chunk) {
+    return chunk.tokens.map(t => t.token).join(" ");
+  }
+  return chunk.token;
+}
+```
+
+## API Reference
+
+### `regexpChunkParse(tokens, grammar)`
+
+Parses POS-tagged tokens into chunks using regular expression patterns.
+
+**Parameters:**
+- `tokens`: `TaggedToken[]` - POS-tagged tokens
+- `grammar`: `string` - Chunk grammar rules
+
+**Returns:** `ChunkElement[]` - Mixed array of chunks and tokens
+
+### `chunkTreeToIob(tree)`
+
+Converts chunk tree to IOB format.
+
+**Parameters:**
+- `tree`: `ChunkElement[]` - Chunk tree
+
+**Returns:** `IobRow[]` - IOB-tagged tokens

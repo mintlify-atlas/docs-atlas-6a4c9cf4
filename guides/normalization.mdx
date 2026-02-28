@@ -1,0 +1,467 @@
+---
+title: Text Normalization
+description: Normalize text with tokenization, stopword removal, and stemming
+---
+
+Text normalization prepares text for analysis by tokenizing, removing common words, and optionally stemming. bun_nltk provides a unified normalization pipeline.
+
+## Quick Start
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+const text = "The quick brown foxes are jumping over the lazy dogs";
+const tokens = normalizeTokens(text);
+console.log(tokens);
+// ["quick", "brown", "foxes", "jumping", "lazy", "dogs"]
+// Removed: "the", "are", "over" (stopwords)
+```
+
+## Normalization Pipeline
+
+The `normalizeTokens` function combines tokenization, stopword removal, and optional stemming.
+
+### Basic Usage
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+const text = "This is a test of the normalization system";
+const tokens = normalizeTokens(text);
+// ["test", "normalization", "system"]
+// Removed: "this", "is", "a", "of", "the"
+```
+
+**Signature:**
+```typescript
+type NormalizeOptions = {
+  removeStopwords?: boolean;   // Remove common words (default: true)
+  preferNativeAscii?: boolean; // Use fast native implementation (default: true)
+  stem?: boolean;              // Apply Porter stemming (default: false)
+};
+
+function normalizeTokens(
+  text: string, 
+  options?: NormalizeOptions
+): string[]
+```
+
+<Steps>
+  <Step title="Default Normalization">
+    ```typescript
+    import { normalizeTokens } from "bun_nltk";
+
+    const text = "The cats and dogs are playing in the park";
+    const tokens = normalizeTokens(text);
+    console.log(tokens);
+    // ["cats", "dogs", "playing", "park"]
+    // Removed stopwords: "the", "and", "are", "in"
+    ```
+  </Step>
+
+  <Step title="Keep Stopwords">
+    ```typescript
+    import { normalizeTokens } from "bun_nltk";
+
+    const text = "The cats and dogs are playing";
+    const tokens = normalizeTokens(text, { 
+      removeStopwords: false 
+    });
+    console.log(tokens);
+    // ["the", "cats", "and", "dogs", "are", "playing"]
+    ```
+  </Step>
+
+  <Step title="With Stemming">
+    ```typescript
+    import { normalizeTokens } from "bun_nltk";
+
+    const text = "The running cats and jumping dogs";
+    const tokens = normalizeTokens(text, { 
+      stem: true 
+    });
+    console.log(tokens);
+    // ["run", "cat", "jump", "dog"]
+    // Removed stopwords + applied stemming
+    ```
+  </Step>
+
+  <Step title="Unicode Support">
+    ```typescript
+    import { normalizeTokens } from "bun_nltk";
+
+    const text = "Café résumé naïve";
+    const tokens = normalizeTokens(text, { 
+      preferNativeAscii: false 
+    });
+    console.log(tokens);
+    // ["café", "résumé", "naïve"]
+    // Uses Unicode-aware tokenization
+    ```
+  </Step>
+</Steps>
+
+## Stopword Removal
+
+Stopwords are common words that typically don't carry significant meaning.
+
+### Built-in Stopwords
+
+bun_nltk includes a comprehensive English stopword list:
+
+```typescript
+// Articles & Determiners
+"a", "an", "the", "this", "that", "these", "those"
+
+// Prepositions
+"in", "on", "at", "to", "from", "of", "for", "with"
+"by", "into", "over", "under", "up", "down", "out"
+
+// Conjunctions
+"and", "or", "but", "if", "then"
+
+// Pronouns  
+"i", "you", "he", "she", "it", "we", "they"
+"me", "him", "her", "us", "them"
+"my", "your", "our", "their", "myself", "ourselves", "themselves"
+
+// Verbs (common auxiliary)
+"is", "am", "are", "was", "were", "be", "been", "will"
+"do", "does", "did", "have", "has", "had"
+
+// Adverbs & Modifiers
+"no", "not", "very", "too", "just", "now"
+"more", "most", "such", "again", "further", "once"
+
+// Quantifiers
+"all", "any", "both", "each", "few", "some", "other"
+
+// Question words
+"when", "where", "why", "how", "here", "there"
+
+// And more...
+```
+
+### Example Usage
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+const sentences = [
+  "I am going to the store",
+  "She will be there soon",
+  "They have been waiting for hours"
+];
+
+for (const sentence of sentences) {
+  const tokens = normalizeTokens(sentence);
+  console.log(tokens);
+}
+// ["going", "store"]
+// ["soon"]
+// ["waiting", "hours"]
+```
+
+## ASCII vs Unicode
+
+### ASCII Mode (Default)
+
+Fast native implementation for ASCII text.
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+const text = "Hello World 123";
+const tokens = normalizeTokens(text, { 
+  preferNativeAscii: true  // default
+});
+
+// Uses SIMD-optimized native tokenizer
+// Pattern: [A-Za-z0-9']+
+```
+
+### Unicode Mode
+
+Supports international characters and proper Unicode normalization.
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+const text = "Café résumé naïve 日本語";
+const tokens = normalizeTokens(text, { 
+  preferNativeAscii: false 
+});
+
+// Uses Unicode-aware tokenizer
+// Pattern: [\p{L}\p{N}']+
+// Applies NFKC normalization
+```
+
+<Note>
+  The function automatically detects non-ASCII characters and falls back to Unicode mode when needed, even if `preferNativeAscii: true`.
+</Note>
+
+## Complete Workflows
+
+### Document Preprocessing
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+function preprocessDocument(text: string) {
+  // Normalize with stemming
+  const tokens = normalizeTokens(text, {
+    removeStopwords: true,
+    stem: true
+  });
+  
+  // Remove very short tokens
+  return tokens.filter(t => t.length >= 3);
+}
+
+const document = `
+  The natural language processing library for Bun.
+  It provides fast tokenization and stemming capabilities.
+`;
+
+const processed = preprocessDocument(document);
+console.log(processed);
+// ["natur", "languag", "process", "librari", "bun", "provid", "fast", "token", "stem", "capabl"]
+```
+
+### Search Index Building
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+function buildSearchIndex(documents: string[]) {
+  const index = new Map<string, Set<number>>();
+  
+  for (const [docId, doc] of documents.entries()) {
+    const tokens = normalizeTokens(doc, { stem: true });
+    
+    for (const token of new Set(tokens)) {
+      if (!index.has(token)) {
+        index.set(token, new Set());
+      }
+      index.get(token)!.add(docId);
+    }
+  }
+  
+  return index;
+}
+
+const docs = [
+  "The cat sat on the mat",
+  "The dog sat on the log",
+  "Cats and dogs are friends"
+];
+
+const index = buildSearchIndex(docs);
+
+// Search for "sitting"
+const query = normalizeTokens("sitting", { stem: true });
+// ["sit"]
+
+const results = index.get(query[0]!);
+console.log(results); // Set { 0, 1 }
+// Matches documents containing "sat"
+```
+
+### Text Classification Preprocessing
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+function extractFeatures(text: string): Record<string, number> {
+  const tokens = normalizeTokens(text, { 
+    removeStopwords: true,
+    stem: true 
+  });
+  
+  const features: Record<string, number> = {};
+  for (const token of tokens) {
+    features[token] = (features[token] || 0) + 1;
+  }
+  
+  return features;
+}
+
+const email = "Buy cheap pills now! Limited time offer!";
+const features = extractFeatures(email);
+console.log(features);
+// { "buy": 1, "cheap": 1, "pill": 1, "limit": 1, "time": 1, "offer": 1 }
+```
+
+### Keyword Extraction
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+function extractKeywords(text: string, topK = 5): string[] {
+  const tokens = normalizeTokens(text, { 
+    removeStopwords: true,
+    stem: false  // Keep readable forms
+  });
+  
+  // Count frequencies
+  const freq = new Map<string, number>();
+  for (const token of tokens) {
+    freq.set(token, (freq.get(token) || 0) + 1);
+  }
+  
+  // Sort by frequency
+  const sorted = [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topK)
+    .map(([word]) => word);
+  
+  return sorted;
+}
+
+const article = `
+  Machine learning is transforming artificial intelligence.
+  Machine learning algorithms learn from data.
+  Artificial intelligence systems use machine learning extensively.
+`;
+
+const keywords = extractKeywords(article, 3);
+console.log(keywords);
+// ["machine", "learning", "artificial"]
+```
+
+## Advanced Options
+
+### Custom Pipeline
+
+Build your own normalization pipeline:
+
+```typescript
+import { 
+  tokenizeAsciiNative, 
+  normalizeTokensAsciiNative,
+  porterStemAsciiTokens 
+} from "bun_nltk";
+
+function customNormalize(text: string) {
+  // Step 1: Tokenize (includes stopword removal)
+  const tokens = normalizeTokensAsciiNative(text, true);
+  
+  // Step 2: Filter by length
+  const filtered = tokens.filter(t => t.length >= 3 && t.length <= 15);
+  
+  // Step 3: Stem
+  const stemmed = porterStemAsciiTokens(filtered);
+  
+  // Step 4: Deduplicate
+  return [...new Set(stemmed)];
+}
+
+const text = "The running cats and jumping dogs are playing";
+const result = customNormalize(text);
+console.log(result);
+// ["run", "cat", "jump", "dog", "play"]
+```
+
+### Unicode Normalization
+
+```typescript
+import { normalizeTokensUnicode } from "bun_nltk";
+
+// Direct Unicode normalization
+const text = "café résumé naïve";
+const tokens = normalizeTokensUnicode(text, true);
+console.log(tokens);
+// ["café", "résumé", "naïve"]
+// Applies NFKC normalization + stopword removal
+```
+
+## Performance Optimization
+
+<Steps>
+  <Step title="Use Native for ASCII">
+    ```typescript
+    // Fast path for ASCII text
+    const text = "English text only";
+    const tokens = normalizeTokens(text, { 
+      preferNativeAscii: true  // default, uses SIMD
+    });
+    ```
+  </Step>
+
+  <Step title="Disable Stemming for Speed">
+    ```typescript
+    // Stemming is expensive
+    const tokens = normalizeTokens(text, { 
+      stem: false  // default, faster
+    });
+    ```
+  </Step>
+
+  <Step title="Batch Processing">
+    ```typescript
+    // Process many documents
+    const docs = ["doc1", "doc2", /* ... */];
+    const allTokens = docs.map(doc => 
+      normalizeTokens(doc, { stem: true })
+    );
+    ```
+  </Step>
+</Steps>
+
+## Common Patterns
+
+### Term Frequency
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+function termFrequency(text: string): Map<string, number> {
+  const tokens = normalizeTokens(text, { stem: true });
+  const freq = new Map<string, number>();
+  
+  for (const token of tokens) {
+    freq.set(token, (freq.get(token) || 0) + 1);
+  }
+  
+  return freq;
+}
+
+const text = "cats and dogs and birds";
+const freq = termFrequency(text);
+console.log(freq);
+// Map { "cat" => 1, "dog" => 1, "bird" => 1 }
+// "and" removed as stopword
+```
+
+### Document Similarity
+
+```typescript
+import { normalizeTokens } from "bun_nltk";
+
+function jaccardSimilarity(text1: string, text2: string): number {
+  const tokens1 = new Set(normalizeTokens(text1, { stem: true }));
+  const tokens2 = new Set(normalizeTokens(text2, { stem: true }));
+  
+  const intersection = new Set(
+    [...tokens1].filter(t => tokens2.has(t))
+  );
+  const union = new Set([...tokens1, ...tokens2]);
+  
+  return intersection.size / union.size;
+}
+
+const doc1 = "cats and dogs are playing";
+const doc2 = "the cat plays with the dog";
+const similarity = jaccardSimilarity(doc1, doc2);
+console.log(similarity); // ~0.67
+// Common stems: "cat", "dog", "play"
+```
+
+<Tip>
+  For maximum performance on ASCII text, use the default options. For international text, set `preferNativeAscii: false`.
+</Tip>
+
+<Warning>
+  Stemming is lossy and may reduce accuracy for some applications. Test with and without stemming to find the best option for your use case.
+</Warning>

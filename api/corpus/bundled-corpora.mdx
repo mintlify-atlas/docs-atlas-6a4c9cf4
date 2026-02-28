@@ -1,0 +1,196 @@
+---
+title: Bundled Corpora
+description: API reference for loading bundled corpus data from the filesystem
+---
+
+## Overview
+
+bun_nltk includes functions to load corpus bundles from the filesystem. Corpus bundles consist of:
+- An `index.json` file that lists all files and their metadata
+- Individual text files referenced by the index
+
+## loadBundledMiniCorpus()
+
+Loads the default mini corpus bundle that ships with bun_nltk. Results are cached for subsequent calls.
+
+```typescript
+function loadBundledMiniCorpus(rootPath?: string): CorpusReader
+```
+
+**Parameters:**
+- `rootPath` (optional): Custom path to a corpus bundle directory. If not provided, loads the built-in mini corpus.
+
+**Returns:** A `CorpusReader` instance
+
+**Caching:** When called without `rootPath`, the result is cached. Subsequent calls return the cached instance for better performance.
+
+### Example: Default Mini Corpus
+
+```typescript
+import { loadBundledMiniCorpus } from "bun_nltk/corpus";
+
+const corpus = loadBundledMiniCorpus();
+
+// Access corpus data
+const words = corpus.words();
+const sentences = corpus.sents();
+const categories = corpus.categories();
+
+console.log(`Loaded ${words.length} words from ${categories.length} categories`);
+```
+
+### Example: Custom Corpus Path
+
+```typescript
+import { loadBundledMiniCorpus } from "bun_nltk/corpus";
+
+// Load from a custom directory
+const customCorpus = loadBundledMiniCorpus("/path/to/custom/corpus");
+
+const fileIds = customCorpus.fileIds();
+console.log("Files:", fileIds);
+```
+
+## loadCorpusBundleFromIndex()
+
+Loads a corpus bundle from a custom `index.json` file. Use this when you have your own corpus data organized as a bundle.
+
+```typescript
+function loadCorpusBundleFromIndex(indexPath: string): CorpusReader
+```
+
+**Parameters:**
+- `indexPath`: Absolute or relative path to the `index.json` file
+
+**Returns:** A `CorpusReader` instance
+
+**Note:** File paths in the index are resolved relative to the directory containing `index.json`.
+
+### Example: Load Custom Index
+
+```typescript
+import { loadCorpusBundleFromIndex } from "bun_nltk/corpus";
+
+const corpus = loadCorpusBundleFromIndex("./my-corpus/index.json");
+
+const newsWords = corpus.words({ categories: ["news"] });
+console.log(`Found ${newsWords.length} words in news category`);
+```
+
+### Example: Filtering by Category
+
+```typescript
+import { loadCorpusBundleFromIndex } from "bun_nltk/corpus";
+
+const corpus = loadCorpusBundleFromIndex("./corpora/brown/index.json");
+
+// Get sentences from romance category only
+const romanceSents = corpus.sents({ categories: ["romance"] });
+
+// Get words from multiple categories
+const mixedWords = corpus.words({ 
+  categories: ["news", "editorial"] 
+});
+```
+
+## Corpus Bundle Format
+
+A corpus bundle consists of:
+
+### index.json Structure
+
+```typescript
+type CorpusMiniIndex = {
+  version: number;
+  files: Array<{
+    id: string;
+    path: string;
+    categories?: string[];
+  }>;
+};
+```
+
+### Example index.json
+
+```json
+{
+  "version": 1,
+  "files": [
+    {
+      "id": "brown_news_001.txt",
+      "path": "brown/news/001.txt",
+      "categories": ["news"]
+    },
+    {
+      "id": "brown_romance_001.txt",
+      "path": "brown/romance/001.txt",
+      "categories": ["romance"]
+    }
+  ]
+}
+```
+
+### Directory Structure Example
+
+```
+my-corpus/
+├── index.json
+└── brown/
+    ├── news/
+    │   └── 001.txt
+    └── romance/
+        └── 001.txt
+```
+
+## Creating Your Own Corpus Bundle
+
+To create a custom corpus bundle:
+
+1. **Organize text files** in a directory structure
+2. **Create index.json** with file metadata
+3. **Load with loadCorpusBundleFromIndex()**
+
+### Example: Build Custom Bundle
+
+```typescript
+import { writeFileSync } from "fs";
+import { loadCorpusBundleFromIndex } from "bun_nltk/corpus";
+import type { CorpusMiniIndex } from "bun_nltk/corpus";
+
+// Create index
+const index: CorpusMiniIndex = {
+  version: 1,
+  files: [
+    {
+      id: "doc1.txt",
+      path: "texts/doc1.txt",
+      categories: ["technical"]
+    },
+    {
+      id: "doc2.txt",
+      path: "texts/doc2.txt",
+      categories: ["technical", "tutorial"]
+    }
+  ]
+};
+
+// Write index
+writeFileSync("./my-corpus/index.json", JSON.stringify(index, null, 2));
+
+// Load corpus
+const corpus = loadCorpusBundleFromIndex("./my-corpus/index.json");
+
+// Use corpus
+const technicalWords = corpus.words({ categories: ["technical"] });
+```
+
+## Performance Considerations
+
+- **Caching**: `loadBundledMiniCorpus()` caches results when called without arguments
+- **Loading**: All corpus files are loaded into memory when creating a `CorpusReader`
+- **Filtering**: File selection happens in memory; filtering is fast even for large category sets
+
+## See Also
+
+- [CorpusReader](/api/corpus/corpus-reader) - CorpusReader class methods
+- [Registry](/api/corpus/registry) - Download corpora from remote registries

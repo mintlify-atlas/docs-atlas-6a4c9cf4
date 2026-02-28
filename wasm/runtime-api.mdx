@@ -1,0 +1,683 @@
+---
+title: Runtime API Reference
+description: Complete API reference for the WasmNltk class
+---
+
+## WasmNltk Class
+
+The `WasmNltk` class provides a high-level interface to the bun_nltk WebAssembly module.
+
+### Initialization
+
+#### `WasmNltk.init()`
+
+```typescript
+static async init(init?: WasmNltkInit): Promise<WasmNltk>
+```
+
+Initializes a new WASM instance.
+
+**Parameters:**
+
+<ParamField path="init.wasmBytes" type="Uint8Array" optional>
+  Raw WASM module bytes. Use this when loading from a URL or bundled asset.
+</ParamField>
+
+<ParamField path="init.wasmPath" type="string" optional>
+  Path to the WASM file. Defaults to `../native/bun_nltk.wasm` relative to the module.
+</ParamField>
+
+**Returns:** `Promise<WasmNltk>` - Initialized WASM instance
+
+**Example:**
+
+```javascript
+import { WasmNltk } from 'bun_nltk/wasm';
+
+// From URL
+const response = await fetch('/bun_nltk.wasm');
+const wasmBytes = new Uint8Array(await response.arrayBuffer());
+const nltk = await WasmNltk.init({ wasmBytes });
+
+// From path (Node.js/Bun)
+const nltkPath = await WasmNltk.init({ wasmPath: './bun_nltk.wasm' });
+
+// Default path
+const nltkDefault = await WasmNltk.init();
+```
+
+---
+
+### Memory Management
+
+#### `dispose()`
+
+```typescript
+dispose(): void
+```
+
+Frees all allocated memory blocks. Call this when you're done using the instance.
+
+**Example:**
+
+```javascript
+const nltk = await WasmNltk.init({ wasmBytes });
+// Use nltk...
+nltk.dispose();
+```
+
+---
+
+## Tokenization Methods
+
+### `tokenizeAscii()`
+
+```typescript
+tokenizeAscii(text: string): string[]
+```
+
+Tokenizes ASCII text into lowercase words.
+
+**Parameters:**
+
+<ParamField path="text" type="string" required>
+  Input text to tokenize (ASCII only)
+</ParamField>
+
+**Returns:** `string[]` - Array of lowercase tokens
+
+**Example:**
+
+```javascript
+const tokens = nltk.tokenizeAscii('Hello, World! This is a test.');
+// ['hello', 'world', 'this', 'is', 'a', 'test']
+```
+
+---
+
+### `tokenOffsetsAscii()`
+
+```typescript
+tokenOffsetsAscii(text: string): {
+  total: number;
+  offsets: Uint32Array;
+  lengths: Uint32Array;
+  input: Uint8Array;
+}
+```
+
+Returns token offsets and lengths for zero-copy processing.
+
+**Parameters:**
+
+<ParamField path="text" type="string" required>
+  Input text to tokenize
+</ParamField>
+
+**Returns:** Object with:
+- `total`: Number of tokens found
+- `offsets`: Byte offsets for each token in the input
+- `lengths`: Byte lengths for each token
+- `input`: UTF-8 encoded input bytes
+
+**Example:**
+
+```javascript
+const { total, offsets, lengths, input } = nltk.tokenOffsetsAscii('Hello World');
+const decoder = new TextDecoder();
+
+for (let i = 0; i < total; i++) {
+  const start = offsets[i];
+  const len = lengths[i];
+  const token = decoder.decode(input.subarray(start, start + len));
+  console.log(token);
+}
+```
+
+---
+
+### `normalizeTokensAscii()`
+
+```typescript
+normalizeTokensAscii(text: string, removeStopwords?: boolean): string[]
+```
+
+Tokenizes and normalizes text, optionally removing stopwords.
+
+**Parameters:**
+
+<ParamField path="text" type="string" required>
+  Input text to tokenize and normalize
+</ParamField>
+
+<ParamField path="removeStopwords" type="boolean" default="true">
+  Whether to remove stopwords (a, an, the, etc.)
+</ParamField>
+
+**Returns:** `string[]` - Array of normalized tokens
+
+**Example:**
+
+```javascript
+const normalized = nltk.normalizeTokensAscii('The quick brown fox', true);
+// ['quick', 'brown', 'fox'] - 'the' removed
+
+const withStops = nltk.normalizeTokensAscii('The quick brown fox', false);
+// ['the', 'quick', 'brown', 'fox']
+```
+
+---
+
+### `normalizedTokenOffsetsAscii()`
+
+```typescript
+normalizedTokenOffsetsAscii(text: string, removeStopwords?: boolean): {
+  total: number;
+  offsets: Uint32Array;
+  lengths: Uint32Array;
+  input: Uint8Array;
+}
+```
+
+Returns normalized token offsets for zero-copy processing.
+
+**Parameters:**
+
+<ParamField path="text" type="string" required>
+  Input text
+</ParamField>
+
+<ParamField path="removeStopwords" type="boolean" default="true">
+  Whether to remove stopwords
+</ParamField>
+
+**Returns:** Same structure as `tokenOffsetsAscii()`
+
+---
+
+## Sentence Tokenization
+
+### `sentenceTokenizePunktAscii()`
+
+```typescript
+sentenceTokenizePunktAscii(text: string): string[]
+```
+
+Splits text into sentences using the Punkt algorithm.
+
+**Parameters:**
+
+<ParamField path="text" type="string" required>
+  Input text to split into sentences
+</ParamField>
+
+**Returns:** `string[]` - Array of sentences
+
+**Example:**
+
+```javascript
+const text = 'Hello world! How are you? I am fine.';
+const sentences = nltk.sentenceTokenizePunktAscii(text);
+// ['Hello world!', 'How are you?', 'I am fine.']
+```
+
+---
+
+## Metrics & Counting
+
+### `countTokensAscii()`
+
+```typescript
+countTokensAscii(text: string): number
+```
+
+Counts the number of tokens in text.
+
+**Parameters:**
+
+<ParamField path="text" type="string" required>
+  Input text
+</ParamField>
+
+**Returns:** `number` - Token count
+
+**Example:**
+
+```javascript
+const count = nltk.countTokensAscii('Hello world from bun_nltk');
+// 4
+```
+
+---
+
+### `countNgramsAscii()`
+
+```typescript
+countNgramsAscii(text: string, n: number): number
+```
+
+Counts the number of n-grams in text.
+
+**Parameters:**
+
+<ParamField path="text" type="string" required>
+  Input text
+</ParamField>
+
+<ParamField path="n" type="number" required>
+  N-gram size (e.g., 2 for bigrams, 3 for trigrams)
+</ParamField>
+
+**Returns:** `number` - N-gram count
+
+**Example:**
+
+```javascript
+const bigrams = nltk.countNgramsAscii('the quick brown fox', 2);
+// 3 ("the quick", "quick brown", "brown fox")
+
+const trigrams = nltk.countNgramsAscii('the quick brown fox', 3);
+// 2 ("the quick brown", "quick brown fox")
+```
+
+---
+
+### `computeAsciiMetrics()`
+
+```typescript
+computeAsciiMetrics(text: string, n: number): AsciiMetrics
+```
+
+Computes comprehensive text metrics including token and n-gram statistics.
+
+**Parameters:**
+
+<ParamField path="text" type="string" required>
+  Input text to analyze
+</ParamField>
+
+<ParamField path="n" type="number" required>
+  N-gram size for metrics
+</ParamField>
+
+**Returns:** `AsciiMetrics` object with:
+- `tokens`: Total token count
+- `uniqueTokens`: Unique token count
+- `ngrams`: Total n-gram count
+- `uniqueNgrams`: Unique n-gram count
+
+**Example:**
+
+```javascript
+const metrics = nltk.computeAsciiMetrics('the cat and the dog', 2);
+// {
+//   tokens: 5,
+//   uniqueTokens: 4,  // 'the' appears twice
+//   ngrams: 4,
+//   uniqueNgrams: 4
+// }
+```
+
+---
+
+## WordNet
+
+### `wordnetMorphyAscii()`
+
+```typescript
+wordnetMorphyAscii(word: string, pos?: 'n' | 'v' | 'a' | 'r'): string
+```
+
+Finds the base/lemma form of a word using WordNet's morphological analysis.
+
+**Parameters:**
+
+<ParamField path="word" type="string" required>
+  Word to lemmatize
+</ParamField>
+
+<ParamField path="pos" type="'n' | 'v' | 'a' | 'r'" optional>
+  Part of speech: 'n' (noun), 'v' (verb), 'a' (adjective), 'r' (adverb)
+</ParamField>
+
+**Returns:** `string` - Base form, or empty string if not found
+
+**Example:**
+
+```javascript
+const base1 = nltk.wordnetMorphyAscii('running', 'v');
+// 'run'
+
+const base2 = nltk.wordnetMorphyAscii('geese', 'n');
+// 'goose'
+
+const base3 = nltk.wordnetMorphyAscii('better', 'a');
+// 'good'
+```
+
+---
+
+## Part-of-Speech Tagging
+
+### `perceptronPredictBatch()`
+
+```typescript
+perceptronPredictBatch(
+  featureIds: Uint32Array,
+  tokenOffsets: Uint32Array,
+  weights: Float32Array,
+  modelFeatureCount: number,
+  tagCount: number
+): Uint16Array
+```
+
+Performs batch POS tag prediction using a perceptron model.
+
+**Parameters:**
+
+<ParamField path="featureIds" type="Uint32Array" required>
+  Flattened array of feature IDs for all tokens
+</ParamField>
+
+<ParamField path="tokenOffsets" type="Uint32Array" required>
+  Offsets into featureIds for each token (length = token count + 1)
+</ParamField>
+
+<ParamField path="weights" type="Float32Array" required>
+  Model weights (shape: [modelFeatureCount * tagCount])
+</ParamField>
+
+<ParamField path="modelFeatureCount" type="number" required>
+  Number of features in the model
+</ParamField>
+
+<ParamField path="tagCount" type="number" required>
+  Number of POS tags
+</ParamField>
+
+**Returns:** `Uint16Array` - Predicted tag IDs for each token
+
+**Example:**
+
+```javascript
+const featureIds = new Uint32Array([0, 1, 2, 3, 4, 5]);
+const tokenOffsets = new Uint32Array([0, 2, 4, 6]); // 3 tokens
+const weights = new Float32Array(1000); // Pre-trained weights
+
+const tagIds = nltk.perceptronPredictBatch(
+  featureIds,
+  tokenOffsets,
+  weights,
+  100,  // feature count
+  10    // tag count
+);
+// Uint16Array [3, 7, 2] - tag IDs for each token
+```
+
+---
+
+## Language Models
+
+### `evaluateLanguageModelIds()`
+
+```typescript
+evaluateLanguageModelIds(input: {
+  tokenIds: Uint32Array;
+  sentenceOffsets: Uint32Array;
+  order: number;
+  model: WasmLmModelType;
+  gamma: number;
+  discount: number;
+  vocabSize: number;
+  probeContextFlat: Uint32Array;
+  probeContextLens: Uint32Array;
+  probeWordIds: Uint32Array;
+  perplexityTokenIds: Uint32Array;
+  prefixTokenIds: Uint32Array;
+}): { scores: Float64Array; perplexity: number }
+```
+
+Evaluates a language model and computes scores and perplexity.
+
+**Parameters:**
+
+<ParamField path="input.tokenIds" type="Uint32Array" required>
+  Training token IDs
+</ParamField>
+
+<ParamField path="input.sentenceOffsets" type="Uint32Array" required>
+  Sentence boundary offsets
+</ParamField>
+
+<ParamField path="input.order" type="number" required>
+  N-gram order (e.g., 3 for trigram model)
+</ParamField>
+
+<ParamField path="input.model" type="'mle' | 'lidstone' | 'kneser_ney_interpolated'" required>
+  Language model type
+</ParamField>
+
+<ParamField path="input.gamma" type="number" required>
+  Smoothing parameter (for Lidstone)
+</ParamField>
+
+<ParamField path="input.discount" type="number" required>
+  Discount parameter (for Kneser-Ney)
+</ParamField>
+
+<ParamField path="input.vocabSize" type="number" required>
+  Vocabulary size
+</ParamField>
+
+<ParamField path="input.probeContextFlat" type="Uint32Array" required>
+  Flattened probe contexts
+</ParamField>
+
+<ParamField path="input.probeContextLens" type="Uint32Array" required>
+  Length of each probe context
+</ParamField>
+
+<ParamField path="input.probeWordIds" type="Uint32Array" required>
+  Words to score in each context
+</ParamField>
+
+<ParamField path="input.perplexityTokenIds" type="Uint32Array" required>
+  Token IDs for perplexity calculation
+</ParamField>
+
+<ParamField path="input.prefixTokenIds" type="Uint32Array" required>
+  Prefix tokens to condition on
+</ParamField>
+
+**Returns:** Object with:
+- `scores`: Log probability scores for probe words
+- `perplexity`: Model perplexity on the test tokens
+
+---
+
+## Chunking & Parsing
+
+### `chunkIobIds()`
+
+```typescript
+chunkIobIds(input: {
+  tokenTagIds: Uint16Array;
+  atomAllowedOffsets: Uint32Array;
+  atomAllowedLengths: Uint32Array;
+  atomAllowedFlat: Uint16Array;
+  atomMins: Uint8Array;
+  atomMaxs: Uint8Array;
+  ruleAtomOffsets: Uint32Array;
+  ruleAtomCounts: Uint32Array;
+  ruleLabelIds: Uint16Array;
+}): { labelIds: Uint16Array; begins: Uint8Array }
+```
+
+Performs IOB chunking on POS-tagged tokens.
+
+**Returns:** Object with:
+- `labelIds`: Chunk label ID for each token
+- `begins`: 1 if token begins a chunk, 0 otherwise
+
+---
+
+### `cykRecognizeIds()`
+
+```typescript
+cykRecognizeIds(input: {
+  tokenBits: BigUint64Array;
+  binaryLeft: Uint16Array;
+  binaryRight: Uint16Array;
+  binaryParent: Uint16Array;
+  unaryChild: Uint16Array;
+  unaryParent: Uint16Array;
+  startSymbol: number;
+}): boolean
+```
+
+Runs the CYK parsing algorithm to check if input is grammatical.
+
+**Returns:** `boolean` - `true` if the input is recognized by the grammar
+
+---
+
+## Classification
+
+### `naiveBayesLogScoresIds()`
+
+```typescript
+naiveBayesLogScoresIds(input: {
+  docTokenIds: Uint32Array;
+  vocabSize: number;
+  tokenCountsMatrix: Uint32Array;
+  labelDocCounts: Uint32Array;
+  labelTokenTotals: Uint32Array;
+  totalDocs: number;
+  smoothing: number;
+}): Float64Array
+```
+
+Computes Naive Bayes log probability scores for document classification.
+
+**Parameters:**
+
+<ParamField path="input.docTokenIds" type="Uint32Array" required>
+  Token IDs in the document to classify
+</ParamField>
+
+<ParamField path="input.vocabSize" type="number" required>
+  Total vocabulary size
+</ParamField>
+
+<ParamField path="input.tokenCountsMatrix" type="Uint32Array" required>
+  Token counts per label (shape: [labelCount * vocabSize])
+</ParamField>
+
+<ParamField path="input.labelDocCounts" type="Uint32Array" required>
+  Number of documents per label
+</ParamField>
+
+<ParamField path="input.labelTokenTotals" type="Uint32Array" required>
+  Total token count per label
+</ParamField>
+
+<ParamField path="input.totalDocs" type="number" required>
+  Total number of training documents
+</ParamField>
+
+<ParamField path="input.smoothing" type="number" required>
+  Laplace smoothing parameter (typically 1.0)
+</ParamField>
+
+**Returns:** `Float64Array` - Log probability score for each label
+
+**Example:**
+
+```javascript
+const scores = nltk.naiveBayesLogScoresIds({
+  docTokenIds: new Uint32Array([0, 5, 10, 15]),
+  vocabSize: 1000,
+  tokenCountsMatrix: trainingCounts,
+  labelDocCounts: new Uint32Array([100, 150, 80]),
+  labelTokenTotals: new Uint32Array([5000, 7500, 4000]),
+  totalDocs: 330,
+  smoothing: 1.0
+});
+// Float64Array [-2.5, -3.1, -4.2] - scores for each label
+
+// Predict class
+const predictedLabel = scores.indexOf(Math.max(...scores));
+```
+
+---
+
+## Types
+
+### `WasmNltkInit`
+
+```typescript
+type WasmNltkInit = {
+  wasmBytes?: Uint8Array;
+  wasmPath?: string;
+};
+```
+
+### `AsciiMetrics`
+
+```typescript
+type AsciiMetrics = {
+  tokens: number;
+  uniqueTokens: number;
+  ngrams: number;
+  uniqueNgrams: number;
+};
+```
+
+### `WasmLmModelType`
+
+```typescript
+type WasmLmModelType = "mle" | "lidstone" | "kneser_ney_interpolated";
+```
+
+- `mle`: Maximum Likelihood Estimation
+- `lidstone`: Lidstone smoothing (add-k)
+- `kneser_ney_interpolated`: Kneser-Ney interpolated smoothing
+
+---
+
+## Memory Pool Details
+
+The `WasmNltk` class maintains an internal memory pool to optimize allocations. The pool uses the following strategy:
+
+1. **Block Keys**: Each operation type has a unique key (e.g., "offsets", "metrics")
+2. **Reuse**: If a block exists and is large enough, it's reused
+3. **Reallocation**: If a larger block is needed, the old one is freed first
+4. **Cleanup**: All blocks are freed when `dispose()` is called
+
+```javascript
+// Internal pool structure (for reference)
+class WasmNltk {
+  private readonly blocks = new Map<string, PoolBlock>();
+  
+  private ensureBlock(key: string, bytes: number): PoolBlock {
+    const existing = this.blocks.get(key);
+    if (existing && existing.bytes >= bytes) return existing;
+    
+    // Reallocate if needed
+    if (existing) {
+      this.exports.bunnltk_wasm_free(existing.ptr, existing.bytes);
+    }
+    
+    const ptr = this.exports.bunnltk_wasm_alloc(bytes);
+    const block = { ptr, bytes };
+    this.blocks.set(key, block);
+    return block;
+  }
+}
+```
+
+## Next Steps
+
+- [Browser Usage Guide](/wasm/browser-usage) - Using WASM in the browser
+- [Tokenization](/guides/tokenization) - Deep dive into tokenization
+- [Text Classification](/advanced/classification) - Text classification with Naive Bayes

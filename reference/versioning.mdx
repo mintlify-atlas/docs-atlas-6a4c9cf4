@@ -1,0 +1,297 @@
+---
+title: Versioning Policy
+description: Semantic versioning rules and release process for bun_nltk
+---
+
+## Overview
+
+This project uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
+
+## Versioning Rules
+
+### MAJOR Version
+
+Increment `MAJOR` for breaking API or behavior changes.
+
+**Examples:**
+- Removing or renaming public functions
+- Changing function signatures (required parameters, return types)
+- Removing support for a runtime or platform
+- Changing default behavior in non-backward-compatible ways
+
+### MINOR Version
+
+Increment `MINOR` for backward-compatible features and new APIs.
+
+**Examples:**
+- Adding new functions or methods
+- Adding optional parameters to existing functions
+- Adding new tokenizers, parsers, or classifiers
+- Performance improvements without API changes
+- New WASM exports
+
+### PATCH Version
+
+Increment `PATCH` for backward-compatible bug fixes and performance fixes.
+
+**Examples:**
+- Fixing incorrect behavior
+- Performance optimizations without API changes
+- Documentation updates
+- Internal refactoring
+- Dependency updates
+
+## Source of Truth
+
+**`package.json` `version` field** is the canonical publish version.
+
+**`CHANGELOG.md`** must include an entry for every released version.
+
+## Release Process
+
+### 1. Pre-Release Checks
+
+Ensure working tree is clean:
+
+```bash
+git status
+```
+
+Run release readiness check:
+
+```bash
+bun run release:check
+```
+
+This validates:
+- Valid semantic version format
+- No uncommitted changes
+- All tests pass
+- Benchmarks are within acceptable ranges
+
+### 2. Update CHANGELOG.md
+
+Move changes from `[Unreleased]` section into a new version section:
+
+```markdown
+## [Unreleased]
+
+### Added
+- (no entries yet)
+
+## [X.Y.Z] - YYYY-MM-DD
+
+### Added
+- New feature A
+- New API B
+
+### Changed
+- Updated behavior of C
+
+### Fixed
+- Bug fix for D
+```
+
+Add release date in `YYYY-MM-DD` format.
+
+### 3. Bump Version
+
+Update version in `package.json`:
+
+```json
+{
+  "version": "X.Y.Z"
+}
+```
+
+### 4. Commit Release Metadata
+
+Commit the changelog and version bump:
+
+```bash
+git add CHANGELOG.md package.json
+git commit -m "release: vX.Y.Z"
+```
+
+### 5. Tag Release
+
+Create a git tag matching the version:
+
+```bash
+git tag vX.Y.Z
+```
+
+### 6. Push Commit and Tag
+
+Push both the commit and tag:
+
+```bash
+git push origin main
+git push origin vX.Y.Z
+```
+
+### 7. Publish Package
+
+The package can be published in two ways:
+
+**Option A: Automated (Recommended)**
+
+The GitHub Actions workflow in `.github/workflows/release.yml` automatically publishes when a tag is pushed:
+
+- Builds prebuilt native binaries
+- Builds WASM
+- Publishes to npm with provenance
+- Uploads benchmark artifacts
+
+**Option B: Manual**
+
+```bash
+bun publish
+# or
+npm publish
+```
+
+<Note>
+Manual publishing requires npm authentication and does not include provenance.
+</Note>
+
+## Pre-release Versions
+
+### Format
+
+Use the following formats for pre-releases:
+
+- `X.Y.Z-alpha.N` - Alpha releases (experimental)
+- `X.Y.Z-beta.N` - Beta releases (feature-complete, testing)
+- `X.Y.Z-rc.N` - Release candidates (production-ready, final testing)
+
+### Example
+
+```json
+{
+  "version": "1.2.0-beta.1"
+}
+```
+
+### Publishing Pre-releases
+
+Use npm dist-tags to avoid installing pre-releases by default:
+
+```bash
+npm publish --tag next
+# or
+npm publish --tag alpha
+npm publish --tag beta
+npm publish --tag rc
+```
+
+The automated release workflow detects pre-release versions and uses appropriate tags.
+
+### CHANGELOG for Pre-releases
+
+Keep pre-release notes in the same version section until stable release:
+
+```markdown
+## [1.2.0] - 2026-03-15
+
+### Added
+- Feature A (added in 1.2.0-beta.1)
+- Feature B (added in 1.2.0-beta.2)
+- Feature C (added in 1.2.0-rc.1)
+
+### Fixed
+- Bug fix D (fixed in 1.2.0-rc.2)
+```
+
+## Breaking Change Checklist
+
+When making a breaking change (MAJOR version bump):
+
+### 1. Update API Documentation
+
+Update `docs/API.md` with new signatures and behavior.
+
+### 2. Add Migration Notes
+
+Add migration guide to `CHANGELOG.md`:
+
+```markdown
+## [2.0.0] - YYYY-MM-DD
+
+### Breaking Changes
+
+**Removed `oldFunction()`**
+
+Replace with `newFunction()`:
+
+```typescript
+// Before
+oldFunction(text);
+
+// After
+newFunction(text, { option: true });
+```
+```
+
+### 3. Update Tests
+
+Add or adjust tests for:
+- New behavior
+- Deprecated behavior (if applicable)
+- Migration paths
+
+### 4. Validate Benchmarks
+
+Run full benchmark suite:
+
+```bash
+bun run bench:gate
+```
+
+Ensure no unacceptable performance regressions.
+
+### 5. Update Examples
+
+Update code examples in:
+- README.md
+- Documentation
+- Example files
+
+## Release Validation
+
+The release workflow includes automated validation:
+
+```bash
+bun run release:validate
+```
+
+Validates:
+- Semantic version format
+- Tag matches package.json version
+- CHANGELOG includes version section
+- All tests pass
+- Benchmark gates pass
+
+## Post-Release Workflow
+
+After release, GitHub Actions automatically:
+
+1. **Smoke Tests** - Installs package on Linux/Windows and validates runtime
+2. **Benchmark Upload** - Uploads performance dashboard artifacts
+3. **Parity Report** - Uploads NLTK parity comparison
+4. **Provenance** - Publishes with SLSA provenance attestation
+
+## Version History
+
+See [CHANGELOG.md](/reference/changelog) for full version history.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Changelog" icon="clock-rotate-left" href="/reference/changelog">
+    View complete version history and release notes
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/getting-started/contributing">
+    Learn how to contribute to bun_nltk
+  </Card>
+</CardGroup>

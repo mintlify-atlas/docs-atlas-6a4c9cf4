@@ -1,0 +1,322 @@
+---
+title: Sentence Splitting
+description: Split text into sentences using heuristic and Punkt tokenizers
+---
+
+Sentence tokenization divides text into individual sentences. bun_nltk provides two approaches: a fast heuristic tokenizer and the machine learning-based Punkt tokenizer.
+
+## Quick Start
+
+```typescript
+import { sentenceTokenizeSubset } from "bun_nltk";
+
+const text = "Dr. Smith went to the store. He bought milk. It was cold!";
+const sentences = sentenceTokenizeSubset(text);
+// [
+//   "Dr. Smith went to the store.",
+//   "He bought milk.",
+//   "It was cold!"
+// ]
+```
+
+## Heuristic Tokenizer
+
+Fast rule-based sentence splitter with abbreviation detection.
+
+### Basic Usage
+
+```typescript
+import { sentenceTokenizeSubset } from "bun_nltk";
+
+const text = `Mr. Johnson visited the U.S. last week. 
+He met with Prof. Williams. It was productive!`;
+
+const sentences = sentenceTokenizeSubset(text);
+```
+
+**Signature:**
+```typescript
+type SentenceTokenizerOptions = {
+  abbreviations?: Iterable<string>;      // Custom abbreviations
+  learnAbbreviations?: boolean;          // Auto-detect abbreviations (default: true)
+  orthographicHeuristics?: boolean;      // Use capitalization cues (default: true)
+};
+
+function sentenceTokenizeSubset(
+  text: string, 
+  options?: SentenceTokenizerOptions
+): string[]
+```
+
+<Steps>
+  <Step title="Default Behavior">
+    ```typescript
+    import { sentenceTokenizeSubset } from "bun_nltk";
+
+    const text = "Dr. Smith works at NASA. He studies Mars.";
+    const sentences = sentenceTokenizeSubset(text);
+    console.log(sentences);
+    // [
+    //   "Dr. Smith works at NASA.",
+    //   "He studies Mars."
+    // ]
+    ```
+
+    **Built-in Abbreviations:**
+    `mr`, `mrs`, `ms`, `dr`, `prof`, `sr`, `jr`, `st`, `vs`, `etc`, `e.g`, `i.e`, `u.s`, `u.k`, `a.m`, `p.m`
+  </Step>
+
+  <Step title="Add Custom Abbreviations">
+    ```typescript
+    const text = "The CEO of Inc. met with the CTO. They discussed APIs.";
+    
+    const sentences = sentenceTokenizeSubset(text, {
+      abbreviations: ["inc", "ceo", "cto", "api"]
+    });
+    console.log(sentences);
+    // [
+    //   "The CEO of Inc. met with the CTO.",
+    //   "They discussed APIs."
+    // ]
+    ```
+  </Step>
+
+  <Step title="Disable Abbreviation Learning">
+    ```typescript
+    const text = "This is a test. Dr. Smith agrees.";
+    
+    // Don't auto-detect abbreviations
+    const sentences = sentenceTokenizeSubset(text, {
+      learnAbbreviations: false
+    });
+    ```
+
+    With `learnAbbreviations: true` (default), the tokenizer:
+    - Analyzes the text for potential abbreviations
+    - Checks if words ending in `.` are followed by lowercase/uppercase
+    - Adds frequently-occurring patterns to the abbreviation list
+  </Step>
+
+  <Step title="Disable Orthographic Heuristics">
+    ```typescript
+    const text = "The price is 19.99. the next item costs more.";
+    
+    const sentences = sentenceTokenizeSubset(text, {
+      orthographicHeuristics: false
+    });
+    ```
+
+    With `orthographicHeuristics: true` (default):
+    - Uses capitalization to detect sentence starts
+    - Checks for common sentence-starting words
+    - More accurate for well-formatted text
+  </Step>
+</Steps>
+
+## Punkt Tokenizer
+
+Machine learning-based tokenizer with trainable models.
+
+### Using the Default Model
+
+```typescript
+import { sentenceTokenizePunkt } from "bun_nltk";
+
+const text = "Dr. Smith went to the U.S.A. He met Prof. Williams.";
+const sentences = sentenceTokenizePunkt(text);
+// [
+//   "Dr. Smith went to the U.S.A.",
+//   "He met Prof. Williams."
+// ]
+```
+
+**Signature:**
+```typescript
+function sentenceTokenizePunkt(
+  text: string, 
+  model?: PunktModelSerialized
+): string[]
+```
+
+<Note>
+  When no model is provided, uses the default model with common English abbreviations.
+</Note>
+
+### Training a Custom Model
+
+<Steps>
+  <Step title="Prepare Training Data">
+    ```typescript
+    import { trainPunktModel } from "bun_nltk";
+
+    const trainingText = `
+      Dr. Johnson visited the U.S. last year. He enjoyed it.
+      Prof. Williams teaches at MIT. She specializes in AI.
+      The conference was in Sep. 2024. It was successful.
+      The CEO of Tech Inc. announced new products. Sales increased.
+    `;
+    ```
+  </Step>
+
+  <Step title="Train the Model">
+    ```typescript
+    import { trainPunktModel } from "bun_nltk";
+
+    const model = trainPunktModel(trainingText, {
+      minAbbrevCount: 2,           // Min occurrences to detect abbreviation
+      minCollocationCount: 2,      // Min occurrences for word pairs
+      minSentenceStarterCount: 2   // Min occurrences for sentence starters
+    });
+
+    console.log(model.abbreviations);
+    // ["dr", "prof", "sep", "inc", ...]
+    ```
+
+    **Training Options:**
+    ```typescript
+    type PunktTrainingOptions = {
+      minAbbrevCount?: number;          // Default: 2
+      minCollocationCount?: number;     // Default: 2  
+      minSentenceStarterCount?: number; // Default: 2
+    };
+    ```
+  </Step>
+
+  <Step title="Use the Trained Model">
+    ```typescript
+    import { sentenceTokenizePunkt } from "bun_nltk";
+
+    const newText = "Dr. Johnson arrived. Prof. Williams was waiting.";
+    const sentences = sentenceTokenizePunkt(newText, model);
+    ```
+  </Step>
+
+  <Step title="Save and Load Models">
+    ```typescript
+    import { 
+      serializePunktModel, 
+      parsePunktModel,
+      sentenceTokenizePunkt 
+    } from "bun_nltk";
+
+    // Save model to JSON
+    const modelJson = serializePunktModel(model);
+    await Bun.write("punkt_model.json", modelJson);
+
+    // Load model from JSON
+    const loadedJson = await Bun.file("punkt_model.json").text();
+    const loadedModel = parsePunktModel(loadedJson);
+
+    // Use loaded model
+    const sentences = sentenceTokenizePunkt(text, loadedModel);
+    ```
+  </Step>
+</Steps>
+
+### Model Structure
+
+```typescript
+type PunktModelSerialized = {
+  version: number;                    // Model format version
+  abbreviations: string[];            // Learned abbreviations
+  collocations: Array<[string, string]>; // Word pairs (abbrev, following word)
+  sentenceStarters: string[];         // Common sentence-starting words
+};
+```
+
+**Example Model:**
+```json
+{
+  "version": 1,
+  "abbreviations": ["dr", "prof", "inc", "ltd"],
+  "collocations": [["dr", "smith"], ["prof", "jones"]],
+  "sentenceStarters": ["he", "she", "they", "the"]
+}
+```
+
+## Native Implementation
+
+For maximum performance with the default Punkt model:
+
+```typescript
+import { sentenceTokenizePunktAsciiNative } from "bun_nltk";
+
+const text = "First sentence. Second sentence! Third?";
+const sentences = sentenceTokenizePunktAsciiNative(text);
+// Uses optimized native implementation
+```
+
+<Tip>
+  Use `sentenceTokenizePunktAsciiNative` for 10-50x faster processing when you don't need a custom model.
+</Tip>
+
+## Advanced Use Cases
+
+### Domain-Specific Abbreviations
+
+```typescript
+import { sentenceTokenizeSubset } from "bun_nltk";
+
+// Medical text
+const medicalText = "The pt. was diagnosed with HTN. The Dr. prescribed meds.";
+const medicalSentences = sentenceTokenizeSubset(medicalText, {
+  abbreviations: ["pt", "htn", "dr", "meds"]
+});
+
+// Legal text
+const legalText = "The def. appealed per Art. 52. The ct. denied it.";
+const legalSentences = sentenceTokenizeSubset(legalText, {
+  abbreviations: ["def", "art", "ct", "vs", "etc"]
+});
+```
+
+### Training on Domain Corpus
+
+```typescript
+import { trainPunktModel, sentenceTokenizePunkt } from "bun_nltk";
+
+// Train on scientific papers
+const scientificCorpus = await Bun.file("papers.txt").text();
+const scientificModel = trainPunktModel(scientificCorpus, {
+  minAbbrevCount: 3  // Higher threshold for more confidence
+});
+
+// Use for similar texts
+const newPaper = "The exp. was conducted by Prof. Lee et al. Results were significant.";
+const sentences = sentenceTokenizePunkt(newPaper, scientificModel);
+```
+
+### Batch Processing
+
+```typescript
+import { sentenceTokenizePunktAsciiNative } from "bun_nltk";
+
+const documents = [
+  "Document one. With multiple sentences.",
+  "Document two. Also has sentences.",
+  // ... many more
+];
+
+const allSentences = documents.flatMap(
+  doc => sentenceTokenizePunktAsciiNative(doc)
+);
+```
+
+## Edge Cases Handled
+
+- **Decimal numbers:** `"The price is 19.99. The next item costs more."` ✓
+- **Initials:** `"J.R.R. Tolkien wrote novels."` ✓
+- **Ellipsis:** `"Wait... what happened?"` ✓
+- **Quotations:** `"She said 'Hello.' Then left."` ✓
+- **Multiple punctuation:** `"Really?! Yes!!!"` ✓
+
+## Performance Tips
+
+1. **Use native version** for default Punkt model (fastest)
+2. **Reuse trained models** instead of retraining
+3. **Provide abbreviations** for specialized domains
+4. **Disable learning** if abbreviations are known
+
+<Warning>
+  The Punkt tokenizer requires well-formed sentences in the training data. Poor training data will result in inaccurate models.
+</Warning>

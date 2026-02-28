@@ -1,0 +1,652 @@
+---
+title: Migrating from Python NLTK
+description: Guide for migrating Python NLTK code to bun_nltk with API mappings and examples
+---
+
+## Overview
+
+bun_nltk provides high-performance alternatives to Python NLTK APIs with similar interfaces. This guide helps you migrate existing NLTK code to bun_nltk.
+
+## Installation
+
+### Python NLTK
+
+```bash
+pip install nltk
+```
+
+### bun_nltk
+
+```bash
+bun add bun_nltk
+# or
+npm install bun_nltk
+```
+
+## Basic Tokenization
+
+### Python NLTK
+
+```python
+import nltk
+from nltk.tokenize import word_tokenize
+
+text = "Hello, world! This is a test."
+tokens = word_tokenize(text)
+print(len(tokens))
+```
+
+### bun_nltk
+
+```typescript
+import { wordTokenizeSubset, countTokensAscii } from 'bun_nltk';
+
+const text = "Hello, world! This is a test.";
+
+// Get tokens
+const tokens = wordTokenizeSubset(text);
+
+// Or just count (faster)
+const count = countTokensAscii(text);
+```
+
+## Sentence Tokenization
+
+### Python NLTK
+
+```python
+from nltk.tokenize import sent_tokenize
+
+text = "Hello world. This is a test. How are you?"
+sentences = sent_tokenize(text)
+```
+
+### bun_nltk
+
+```typescript
+import { sentenceTokenizePunkt } from 'bun_nltk';
+
+const text = "Hello world. This is a test. How are you?";
+const sentences = sentenceTokenizePunkt(text);
+```
+
+### Training Custom Punkt Models
+
+#### Python NLTK
+
+```python
+from nltk.tokenize.punkt import PunktSentenceTokenizer, PunktTrainer
+
+trainer = PunktTrainer()
+trainer.train(text)
+tokenizer = PunktSentenceTokenizer(trainer.get_params())
+sentences = tokenizer.tokenize(text)
+```
+
+#### bun_nltk
+
+```typescript
+import { trainPunktModel, sentenceTokenizePunkt } from 'bun_nltk';
+
+const model = trainPunktModel(trainingText, {
+  minAbbrevCount: 2,
+  minCollocationCount: 2,
+});
+
+const sentences = sentenceTokenizePunkt(text, model);
+```
+
+## Frequency Distributions
+
+### Python NLTK
+
+```python
+from nltk import FreqDist
+from nltk.tokenize import word_tokenize
+
+tokens = word_tokenize(text)
+fdist = FreqDist(tokens)
+print(fdist.most_common(10))
+```
+
+### bun_nltk
+
+```typescript
+import { tokenFreqDistIdsAscii } from 'bun_nltk';
+
+const result = tokenFreqDistIdsAscii(text);
+const sortedTokens = result.tokens
+  .map((token, i) => ({ token, count: result.counts[i] }))
+  .sort((a, b) => b.count - a.count)
+  .slice(0, 10);
+```
+
+### Streaming Frequency Distributions
+
+#### bun_nltk
+
+```typescript
+import { NativeFreqDistStream } from 'bun_nltk';
+
+const stream = new NativeFreqDistStream();
+
+// Process text in chunks
+for (const chunk of textChunks) {
+  stream.update(chunk);
+}
+
+stream.flush();
+console.log('Unique tokens:', stream.tokenUniqueCount());
+console.log('Unique bigrams:', stream.bigramUniqueCount());
+
+const json = stream.toJson();
+stream.dispose();
+```
+
+## N-grams
+
+### Python NLTK
+
+```python
+from nltk import ngrams
+from nltk.tokenize import word_tokenize
+
+tokens = word_tokenize(text)
+bigrams = list(ngrams(tokens, 2))
+trigrams = list(ngrams(tokens, 3))
+```
+
+### bun_nltk
+
+```typescript
+import { ngramsAsciiNative } from 'bun_nltk';
+
+const bigrams = ngramsAsciiNative(text, 2);
+const trigrams = ngramsAsciiNative(text, 3);
+```
+
+### Everygrams and Skipgrams
+
+#### Python NLTK
+
+```python
+from nltk.util import everygrams, skipgrams
+
+tokens = word_tokenize(text)
+all_grams = list(everygrams(tokens, min_len=1, max_len=3))
+skip_bigrams = list(skipgrams(tokens, 2, 2))
+```
+
+#### bun_nltk
+
+```typescript
+import { everygramsAsciiNative, skipgramsAsciiNative } from 'bun_nltk';
+
+const allGrams = everygramsAsciiNative(text, 1, 3);
+const skipBigrams = skipgramsAsciiNative(text, 2, 2);
+```
+
+## Collocations
+
+### Python NLTK
+
+```python
+from nltk.collocations import BigramCollocationFinder
+from nltk.metrics import BigramAssocMeasures
+
+finder = BigramCollocationFinder.from_words(tokens)
+bigrams = finder.nbest(BigramAssocMeasures.pmi, 10)
+```
+
+### bun_nltk
+
+```typescript
+import { bigramWindowStatsAscii } from 'bun_nltk';
+
+const collocations = bigramWindowStatsAscii(text, 5)
+  .sort((a, b) => b.pmi - a.pmi)
+  .slice(0, 10);
+```
+
+## Stemming
+
+### Python NLTK
+
+```python
+from nltk.stem import PorterStemmer
+
+stemmer = PorterStemmer()
+stemmed = [stemmer.stem(token) for token in tokens]
+```
+
+### bun_nltk
+
+```typescript
+import { porterStemAsciiTokens } from 'bun_nltk';
+
+const tokens = wordTokenizeSubset(text);
+const stemmed = porterStemAsciiTokens(tokens);
+```
+
+## Text Normalization
+
+### Python NLTK
+
+```python
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+from nltk.tokenize import word_tokenize
+
+stop_words = set(stopwords.words('english'))
+stemmer = PorterStemmer()
+
+tokens = word_tokenize(text.lower())
+filtered = [stemmer.stem(t) for t in tokens if t not in stop_words]
+```
+
+### bun_nltk
+
+```typescript
+import { normalizeTokens } from 'bun_nltk';
+
+const normalized = normalizeTokens(text, {
+  removeStopwords: true,
+  stem: true,
+  preferNativeAscii: true,
+});
+```
+
+## POS Tagging
+
+### Python NLTK
+
+```python
+import nltk
+from nltk import pos_tag
+from nltk.tokenize import word_tokenize
+
+tokens = word_tokenize(text)
+tags = pos_tag(tokens)
+```
+
+### bun_nltk
+
+```typescript
+import { posTagPerceptronAscii } from 'bun_nltk';
+
+const tagged = posTagPerceptronAscii(text);
+// Returns: [{ token, tag, tagId, start, length }, ...]
+```
+
+## WordNet
+
+### Python NLTK
+
+```python
+from nltk.corpus import wordnet as wn
+
+# Get synsets
+synsets = wn.synsets('dog')
+
+# Lemmatization (morphy)
+lemma = wn.morphy('running', wn.VERB)
+
+# Relations
+dog = wn.synset('dog.n.01')
+hypernyms = dog.hypernyms()
+hyponyms = dog.hyponyms()
+```
+
+### bun_nltk
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Get synsets
+const synsets = wordnet.synsets('dog', 'n');
+
+// Lemmatization (morphy)
+const lemma = wordnet.morphy('running', 'v');
+
+// Relations
+const dogSynset = wordnet.synset('dog.n.01');
+if (dogSynset) {
+  const hypernyms = wordnet.hypernyms(dogSynset);
+  const hyponyms = wordnet.hyponyms(dogSynset);
+  const similar = wordnet.similarTo(dogSynset);
+}
+```
+
+### Using Packed WordNet
+
+```typescript
+import { loadWordNetPacked } from 'bun_nltk';
+
+// Faster loading with binary format
+const wordnet = loadWordNetPacked();
+```
+
+## Language Models
+
+### Python NLTK
+
+```python
+from nltk.lm import MLE, KneserNeyInterpolated
+from nltk.lm.preprocessing import padded_everygram_pipeline
+
+train_data = [['the', 'dog', 'ran'], ['the', 'cat', 'sat']]
+train_data, vocab = padded_everygram_pipeline(3, train_data)
+
+lm = KneserNeyInterpolated(3)
+lm.fit(train_data, vocab)
+
+score = lm.score('dog', ['the'])
+perp = lm.perplexity(['the', 'dog', 'ran'])
+```
+
+### bun_nltk
+
+```typescript
+import { trainNgramLanguageModel } from 'bun_nltk';
+
+const sentences = [['the', 'dog', 'ran'], ['the', 'cat', 'sat']];
+
+const lm = trainNgramLanguageModel(sentences, {
+  order: 3,
+  model: 'kneser_ney_interpolated',
+  discount: 0.75,
+});
+
+const score = lm.score('dog', ['the']);
+const perplexity = lm.perplexity(['the', 'dog', 'ran']);
+```
+
+## Chunk Parsing
+
+### Python NLTK
+
+```python
+import nltk
+from nltk import RegexpParser
+
+grammar = r"""
+  NP: {<DT>?<JJ>*<NN.*>+}
+"""
+cp = RegexpParser(grammar)
+tagged = [("the", "DT"), ("big", "JJ"), ("dog", "NN")]
+tree = cp.parse(tagged)
+```
+
+### bun_nltk
+
+```typescript
+import { regexpChunkParse } from 'bun_nltk';
+
+const grammar = `
+  NP: {<DT>?<JJ>*<NN.*>+}
+`;
+
+const tagged = [
+  { token: "the", tag: "DT" },
+  { token: "big", tag: "JJ" },
+  { token: "dog", tag: "NN" },
+];
+
+const tree = regexpChunkParse(tagged, grammar);
+```
+
+## CFG Parsing
+
+### Python NLTK
+
+```python
+import nltk
+from nltk import CFG, ChartParser
+
+grammar = CFG.fromstring("""
+  S -> NP VP
+  NP -> Det N
+  VP -> V NP
+  Det -> 'the'
+  N -> 'dog'
+  V -> 'chased'
+""")
+
+parser = ChartParser(grammar)
+tokens = ['the', 'dog', 'chased', 'the', 'dog']
+trees = list(parser.parse(tokens))
+```
+
+### bun_nltk
+
+```typescript
+import { parseTextWithCfg } from 'bun_nltk';
+
+const grammar = `
+  S -> NP VP
+  NP -> Det N
+  VP -> V NP
+  Det -> 'the'
+  N -> 'dog'
+  V -> 'chased'
+`;
+
+const tokens = ['the', 'dog', 'chased', 'the', 'dog'];
+const trees = parseTextWithCfg(tokens.join(' '), grammar);
+```
+
+### Earley Parser
+
+```typescript
+import { parseTextWithEarley } from 'bun_nltk';
+
+// Earley parser supports arbitrary CFG (no CNF conversion needed)
+const trees = parseTextWithEarley(text, grammar, {
+  maxTrees: 10,
+  normalizeTokens: true,
+});
+```
+
+## Text Classification
+
+### Python NLTK (Naive Bayes)
+
+```python
+import nltk
+from nltk.classify import NaiveBayesClassifier
+from nltk.tokenize import word_tokenize
+
+def extract_features(text):
+    words = set(word_tokenize(text))
+    return {word: True for word in words}
+
+train_data = [
+    (extract_features("I love this movie"), 'pos'),
+    (extract_features("This is terrible"), 'neg'),
+]
+
+classifier = NaiveBayesClassifier.train(train_data)
+label = classifier.classify(extract_features("Great film"))
+```
+
+### bun_nltk (Naive Bayes)
+
+```typescript
+import { trainNaiveBayesTextClassifier } from 'bun_nltk';
+
+const examples = [
+  { label: 'pos', text: 'I love this movie' },
+  { label: 'neg', text: 'This is terrible' },
+];
+
+const classifier = trainNaiveBayesTextClassifier(examples, {
+  smoothing: 1.0,
+});
+
+const label = classifier.classify('Great film');
+const probs = classifier.predict('Great film');
+```
+
+### Decision Tree Classifier
+
+```typescript
+import { trainDecisionTreeTextClassifier } from 'bun_nltk';
+
+const classifier = trainDecisionTreeTextClassifier(examples, {
+  maxDepth: 10,
+  minSamples: 2,
+});
+
+const label = classifier.classify('Great film');
+```
+
+### Logistic Regression
+
+```typescript
+import { trainLogisticTextClassifier } from 'bun_nltk';
+
+const classifier = trainLogisticTextClassifier(examples, {
+  epochs: 10,
+  learningRate: 0.1,
+  l2: 0.01,
+  useNativeScoring: true, // Use native sparse scoring
+});
+
+const label = classifier.classify('Great film');
+```
+
+## Corpora
+
+### Python NLTK
+
+```python
+from nltk.corpus import brown
+
+# Get words from categories
+words = brown.words(categories=['news'])
+
+# Get tagged sentences
+tagged = brown.tagged_sents(categories=['news'])
+```
+
+### bun_nltk
+
+```typescript
+import { loadBundledMiniCorpus } from 'bun_nltk';
+
+const corpus = loadBundledMiniCorpus();
+
+// Get words from categories
+const words = corpus.words({ categories: ['news'] });
+
+// Get sentences
+const sentences = corpus.sents({ categories: ['news'] });
+
+// Get all text
+const text = corpus.raw({ categories: ['news'] });
+```
+
+### Loading External Corpora
+
+```typescript
+import { downloadCorpusRegistry, loadCorpusBundleFromIndex } from 'bun_nltk';
+
+// Download corpus from registry
+const indexPath = await downloadCorpusRegistry('manifest.json', './corpora');
+
+// Load downloaded corpus
+const corpus = loadCorpusBundleFromIndex(indexPath);
+```
+
+## Performance Comparison
+
+See detailed benchmarks:
+- [Native vs Python](/benchmarks/native-vs-python) - Up to 840x faster
+- [WASM Performance](/benchmarks/wasm-performance) - 3-7x faster than Python
+
+## API Mapping Quick Reference
+
+| Python NLTK | bun_nltk | Speedup |
+|---|---|---|
+| `word_tokenize()` | `wordTokenizeSubset()` | ~4x |
+| `sent_tokenize()` | `sentenceTokenizePunkt()` | ~10-16x |
+| `FreqDist` | `tokenFreqDistIdsAscii()` | ~6x |
+| `ngrams()` | `ngramsAsciiNative()` | ~4x |
+| `PorterStemmer.stem()` | `porterStemAscii()` | ~10x |
+| `pos_tag()` | `posTagPerceptronAscii()` | ~4x |
+| `wordnet.synsets()` | `wordnet.synsets()` | ~92x |
+| `wordnet.morphy()` | `wordnet.morphy()` | ~92x |
+| `KneserNeyInterpolated` | `trainNgramLanguageModel()` | ~22x |
+| `RegexpParser` | `regexpChunkParse()` | ~643x |
+| `ChartParser` | `parseTextWithCfg()` | ~38x |
+| `EarleyChartParser` | `parseTextWithEarley()` | ~40x |
+| `NaiveBayesClassifier` | `trainNaiveBayesTextClassifier()` | ~1.4x |
+| `DecisionTreeClassifier` | `trainDecisionTreeTextClassifier()` | ~8x |
+
+## Key Differences
+
+### ASCII Focus
+
+bun_nltk optimizes for ASCII text with fast paths:
+
+```typescript
+// ASCII fast path (with SIMD)
+import { countTokensAscii } from 'bun_nltk';
+const count = countTokensAscii(text);
+
+// Unicode fallback
+import { normalizeTokensUnicode } from 'bun_nltk';
+const tokens = normalizeTokensUnicode(text);
+```
+
+### Native vs WASM vs JS
+
+bun_nltk provides multiple runtime options:
+
+```typescript
+// Native (fastest, server-side)
+import { countTokensAscii } from 'bun_nltk';
+const count = countTokensAscii(text);
+
+// WASM (browser/edge)
+import { WasmNltk } from 'bun_nltk';
+const wasm = await WasmNltk.init();
+const count = wasm.countTokensAscii(text);
+
+// JS reference (portable)
+import { countTokensAsciiJs } from 'bun_nltk';
+const count = countTokensAsciiJs(text);
+```
+
+### Prebuilt Binaries
+
+No build step required:
+
+```bash
+# Just install and run
+npm install bun_nltk
+```
+
+Prebuilt binaries included for:
+- `linux-x64`
+- `win32-x64`
+- WASM (all platforms)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Explore full API documentation
+  </Card>
+  <Card title="Benchmarks" icon="gauge-high" href="/benchmarks/native-vs-python">
+    See detailed performance comparisons
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/getting-started/quick-start">
+    Get started with bun_nltk
+  </Card>
+  <Card title="Examples" icon="book" href="/getting-started/examples">
+    Browse code examples
+  </Card>
+</CardGroup>

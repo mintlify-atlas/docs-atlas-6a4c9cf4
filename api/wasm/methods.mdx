@@ -1,0 +1,389 @@
+---
+title: WASM Methods
+description: All WasmNltk instance methods for text processing
+---
+
+## Overview
+
+After initializing a `WasmNltk` instance, you can use these methods for high-performance text processing operations.
+
+## Tokenization
+
+### countTokensAscii()
+
+Counts the number of tokens in ASCII text.
+
+```typescript
+countTokensAscii(text: string): number
+```
+
+#### Example
+
+```typescript
+const wasm = await WasmNltk.init();
+const count = wasm.countTokensAscii("Hello, world! How are you?");
+console.log(count); // 5
+```
+
+### tokenizeAscii()
+
+Tokenizes ASCII text into an array of lowercase tokens.
+
+```typescript
+tokenizeAscii(text: string): string[]
+```
+
+#### Example
+
+```typescript
+const tokens = wasm.tokenizeAscii("Hello, world!");
+console.log(tokens); // ["hello", "world"]
+```
+
+### tokenOffsetsAscii()
+
+Returns token offsets and lengths for zero-copy tokenization.
+
+```typescript
+tokenOffsetsAscii(text: string): {
+  total: number;
+  offsets: Uint32Array;
+  lengths: Uint32Array;
+  input: Uint8Array;
+}
+```
+
+#### Example
+
+```typescript
+const result = wasm.tokenOffsetsAscii("Hello world");
+console.log(result.total); // 2
+console.log(result.offsets); // Uint32Array [0, 6]
+console.log(result.lengths); // Uint32Array [5, 5]
+```
+
+### normalizeTokensAscii()
+
+Normalizes tokens (lowercase, filter stopwords, remove punctuation).
+
+```typescript
+normalizeTokensAscii(text: string, removeStopwords?: boolean): string[]
+```
+
+#### Parameters
+
+<ParamField path="text" type="string" required>
+  Input text to normalize
+</ParamField>
+
+<ParamField path="removeStopwords" type="boolean" default="true">
+  Whether to remove common English stopwords
+</ParamField>
+
+#### Example
+
+```typescript
+const normalized = wasm.normalizeTokensAscii("The quick brown fox", true);
+console.log(normalized); // ["quick", "brown", "fox"] ("the" removed)
+```
+
+### normalizedTokenOffsetsAscii()
+
+Returns normalized token offsets for zero-copy processing.
+
+```typescript
+normalizedTokenOffsetsAscii(text: string, removeStopwords?: boolean): {
+  total: number;
+  offsets: Uint32Array;
+  lengths: Uint32Array;
+  input: Uint8Array;
+}
+```
+
+## Sentence Tokenization
+
+### sentenceTokenizePunktAscii()
+
+Tokenizes text into sentences using the Punkt algorithm.
+
+```typescript
+sentenceTokenizePunktAscii(text: string): string[]
+```
+
+#### Example
+
+```typescript
+const sentences = wasm.sentenceTokenizePunktAscii(
+  "Hello world. How are you? I'm fine."
+);
+console.log(sentences);
+// ["Hello world.", "How are you?", "I'm fine."]
+```
+
+## N-grams & Metrics
+
+### countNgramsAscii()
+
+Counts the total number of n-grams in the text.
+
+```typescript
+countNgramsAscii(text: string, n: number): number
+```
+
+#### Example
+
+```typescript
+const count = wasm.countNgramsAscii("one two three four", 2);
+console.log(count); // 3 ("one two", "two three", "three four")
+```
+
+### computeAsciiMetrics()
+
+Computes comprehensive text metrics in a single pass.
+
+```typescript
+computeAsciiMetrics(text: string, n: number): AsciiMetrics
+```
+
+#### AsciiMetrics Type
+
+```typescript
+type AsciiMetrics = {
+  tokens: number;         // Total token count
+  uniqueTokens: number;   // Unique token count
+  ngrams: number;         // Total n-gram count
+  uniqueNgrams: number;   // Unique n-gram count
+};
+```
+
+#### Example
+
+```typescript
+const metrics = wasm.computeAsciiMetrics("one two three two one", 2);
+console.log(metrics);
+// {
+//   tokens: 5,
+//   uniqueTokens: 3,
+//   ngrams: 4,
+//   uniqueNgrams: 4
+// }
+```
+
+## Machine Learning
+
+### perceptronPredictBatch()
+
+Performs batch prediction using a perceptron model.
+
+```typescript
+perceptronPredictBatch(
+  featureIds: Uint32Array,
+  tokenOffsets: Uint32Array,
+  weights: Float32Array,
+  modelFeatureCount: number,
+  tagCount: number
+): Uint16Array
+```
+
+#### Parameters
+
+<ParamField path="featureIds" type="Uint32Array" required>
+  Feature IDs for all tokens (flat array)
+</ParamField>
+
+<ParamField path="tokenOffsets" type="Uint32Array" required>
+  Offsets into featureIds array for each token (length = tokenCount + 1)
+</ParamField>
+
+<ParamField path="weights" type="Float32Array" required>
+  Model weights (shape: [modelFeatureCount, tagCount])
+</ParamField>
+
+<ParamField path="modelFeatureCount" type="number" required>
+  Number of features in the model
+</ParamField>
+
+<ParamField path="tagCount" type="number" required>
+  Number of possible tags
+</ParamField>
+
+#### Returns
+
+Returns `Uint16Array` of predicted tag IDs (length = tokenCount).
+
+### naiveBayesLogScoresIds()
+
+Computes Naive Bayes log-probability scores for classification.
+
+```typescript
+naiveBayesLogScoresIds(input: {
+  docTokenIds: Uint32Array;
+  vocabSize: number;
+  tokenCountsMatrix: Uint32Array;
+  labelDocCounts: Uint32Array;
+  labelTokenTotals: Uint32Array;
+  totalDocs: number;
+  smoothing: number;
+}): Float64Array
+```
+
+#### Returns
+
+Returns `Float64Array` of log scores for each label.
+
+## Language Modeling
+
+### evaluateLanguageModelIds()
+
+Evaluates an n-gram language model.
+
+```typescript
+evaluateLanguageModelIds(input: {
+  tokenIds: Uint32Array;
+  sentenceOffsets: Uint32Array;
+  order: number;
+  model: WasmLmModelType;
+  gamma: number;
+  discount: number;
+  vocabSize: number;
+  probeContextFlat: Uint32Array;
+  probeContextLens: Uint32Array;
+  probeWordIds: Uint32Array;
+  perplexityTokenIds: Uint32Array;
+  prefixTokenIds: Uint32Array;
+}): { scores: Float64Array; perplexity: number }
+```
+
+#### WasmLmModelType
+
+```typescript
+type WasmLmModelType = "mle" | "lidstone" | "kneser_ney_interpolated";
+```
+
+#### Parameters
+
+<ParamField path="order" type="number" required>
+  N-gram order (e.g., 2 for bigram, 3 for trigram)
+</ParamField>
+
+<ParamField path="model" type="WasmLmModelType" required>
+  Language model type
+</ParamField>
+
+<ParamField path="gamma" type="number" required>
+  Smoothing parameter (for Lidstone)
+</ParamField>
+
+<ParamField path="discount" type="number" required>
+  Discount parameter (for Kneser-Ney)
+</ParamField>
+
+#### Returns
+
+Returns an object with:
+- `scores`: Float64Array of probability scores for probe words
+- `perplexity`: Overall perplexity score
+
+## Parsing & Chunking
+
+### chunkIobIds()
+
+Performs IOB chunking on tagged tokens.
+
+```typescript
+chunkIobIds(input: {
+  tokenTagIds: Uint16Array;
+  atomAllowedOffsets: Uint32Array;
+  atomAllowedLengths: Uint32Array;
+  atomAllowedFlat: Uint16Array;
+  atomMins: Uint8Array;
+  atomMaxs: Uint8Array;
+  ruleAtomOffsets: Uint32Array;
+  ruleAtomCounts: Uint32Array;
+  ruleLabelIds: Uint16Array;
+}): { labelIds: Uint16Array; begins: Uint8Array }
+```
+
+### cykRecognizeIds()
+
+Performs CYK parsing recognition on a token sequence.
+
+```typescript
+cykRecognizeIds(input: {
+  tokenBits: BigUint64Array;
+  binaryLeft: Uint16Array;
+  binaryRight: Uint16Array;
+  binaryParent: Uint16Array;
+  unaryChild: Uint16Array;
+  unaryParent: Uint16Array;
+  startSymbol: number;
+}): boolean
+```
+
+#### Returns
+
+Returns `true` if the input is recognized by the grammar, `false` otherwise.
+
+## WordNet
+
+### wordnetMorphyAscii()
+
+Finds the morphological root form of a word.
+
+```typescript
+wordnetMorphyAscii(word: string, pos?: "n" | "v" | "a" | "r"): string
+```
+
+#### Parameters
+
+<ParamField path="word" type="string" required>
+  Word to find the root form of
+</ParamField>
+
+<ParamField path="pos" type="'n' | 'v' | 'a' | 'r'" optional>
+  Part of speech: noun (n), verb (v), adjective (a), or adverb (r)
+</ParamField>
+
+#### Example
+
+```typescript
+const root = wasm.wordnetMorphyAscii("running", "v");
+console.log(root); // "run"
+
+const root2 = wasm.wordnetMorphyAscii("geese", "n");
+console.log(root2); // "goose"
+```
+
+## Performance Considerations
+
+### Memory Reuse
+
+The WASM runtime reuses memory blocks across operations. Frequent calls to the same method type will benefit from this optimization:
+
+```typescript
+// Efficient: Memory blocks reused
+for (const text of texts) {
+  const tokens = wasm.tokenizeAscii(text);
+  processTokens(tokens);
+}
+```
+
+### Zero-Copy Operations
+
+Use offset-based methods for zero-copy processing:
+
+```typescript
+const { offsets, lengths, input } = wasm.tokenOffsetsAscii(text);
+
+// Process tokens without creating strings
+for (let i = 0; i < offsets.length; i++) {
+  const start = offsets[i];
+  const len = lengths[i];
+  // Work directly with input.subarray(start, start + len)
+}
+```
+
+## See Also
+
+- [WASM Initialization](/api/wasm/initialization) - How to initialize the WASM runtime
+- [Native APIs](/api/native/overview) - Native library alternative for better performance

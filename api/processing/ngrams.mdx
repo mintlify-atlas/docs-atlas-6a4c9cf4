@@ -1,0 +1,148 @@
+---
+title: 'N-grams'
+description: 'Extract n-grams, everygrams, and skipgrams from text'
+---
+
+## ngramsAsciiNative
+
+Extracts all n-grams of a specified size from text using native SIMD acceleration.
+
+<ParamField path="text" type="string" required>
+  Input text to extract n-grams from
+</ParamField>
+
+<ParamField path="n" type="number" required>
+  Size of n-grams to extract (must be positive integer)
+</ParamField>
+
+<ResponseField name="return" type="string[][]">
+  Array of n-grams, where each n-gram is an array of n tokens
+</ResponseField>
+
+```typescript
+import { ngramsAsciiNative } from 'bun_nltk';
+
+const text = "the quick brown fox";
+const bigrams = ngramsAsciiNative(text, 2);
+// Returns: [["the", "quick"], ["quick", "brown"], ["brown", "fox"]]
+
+const trigrams = ngramsAsciiNative(text, 3);
+// Returns: [["the", "quick", "brown"], ["quick", "brown", "fox"]]
+```
+
+<Note>
+  Uses native implementation with token ID encoding for optimal performance on large texts.
+</Note>
+
+## everygramsAsciiNative
+
+Extracts all n-grams within a length range (combines unigrams, bigrams, trigrams, etc.).
+
+<ParamField path="text" type="string" required>
+  Input text to extract everygrams from
+</ParamField>
+
+<ParamField path="minLen" type="number" default="1">
+  Minimum n-gram length (must be positive integer)
+</ParamField>
+
+<ParamField path="maxLen" type="number" default="Number.MAX_SAFE_INTEGER">
+  Maximum n-gram length (must be positive integer)
+</ParamField>
+
+<ResponseField name="return" type="string[][]">
+  Array of n-grams of varying lengths
+</ResponseField>
+
+```typescript
+import { everygramsAsciiNative } from 'bun_nltk';
+
+const text = "the quick brown";
+const grams = everygramsAsciiNative(text, 1, 2);
+// Returns: [
+//   ["the"],
+//   ["the", "quick"],
+//   ["quick"],
+//   ["quick", "brown"],
+//   ["brown"]
+// ]
+
+const text2 = "hello world";
+const all = everygramsAsciiNative(text2, 1, 3);
+// Returns: [["hello"], ["hello", "world"], ["world"]]
+// (no trigram since only 2 tokens)
+```
+
+<Info>
+  Useful for feature extraction when you want to capture patterns of multiple lengths.
+</Info>
+
+## skipgramsAsciiNative
+
+Extracts skipgrams (n-grams that allow gaps between tokens).
+
+<ParamField path="text" type="string" required>
+  Input text to extract skipgrams from
+</ParamField>
+
+<ParamField path="n" type="number" required>
+  Number of tokens in each skipgram (must be positive integer)
+</ParamField>
+
+<ParamField path="k" type="number" required>
+  Maximum gap size between tokens (must be integer >= 0)
+</ParamField>
+
+<ResponseField name="return" type="string[][]">
+  Array of skipgrams, where each skipgram has n tokens
+</ResponseField>
+
+```typescript
+import { skipgramsAsciiNative } from 'bun_nltk';
+
+const text = "the quick brown fox jumps";
+
+// Standard bigrams (k=0, no gaps)
+const bigrams = skipgramsAsciiNative(text, 2, 0);
+// Returns: [["the", "quick"], ["quick", "brown"], ["brown", "fox"], ["fox", "jumps"]]
+
+// Skip-bigrams with gap up to 1 (k=1)
+const skipBigrams = skipgramsAsciiNative(text, 2, 1);
+// Returns: [
+//   ["the", "quick"],  // no gap
+//   ["the", "brown"],  // gap of 1
+//   ["quick", "brown"], // no gap
+//   ["quick", "fox"],   // gap of 1
+//   ["brown", "fox"],   // no gap
+//   ["brown", "jumps"], // gap of 1
+//   ["fox", "jumps"]    // no gap
+// ]
+
+// Skip-trigrams with gap up to 2 (k=2)
+const skipTrigrams = skipgramsAsciiNative(text, 3, 2);
+// Generates all possible selections of 3 tokens
+// within a window of 3+2=5 positions
+```
+
+<Warning>
+  Large values of k can generate a very large number of skipgrams. For n=3, k=2 on a 100-token text, you may get thousands of skipgrams.
+</Warning>
+
+### Performance Comparison
+
+```typescript
+import { ngramsAsciiNative } from 'bun_nltk';
+import { ngramsAscii } from 'bun_nltk'; // JS reference implementation
+
+const largeText = "...".repeat(10000); // Large document
+
+// Native implementation (SIMD-accelerated)
+console.time('native');
+const result1 = ngramsAsciiNative(largeText, 3);
+console.timeEnd('native'); // ~5ms
+
+// JavaScript reference implementation
+console.time('js');
+const result2 = ngramsAscii(largeText, 3);
+console.timeEnd('js'); // ~45ms
+```

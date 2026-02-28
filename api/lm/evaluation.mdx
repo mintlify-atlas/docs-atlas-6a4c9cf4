@@ -1,0 +1,341 @@
+---
+title: 'Model Evaluation'
+description: 'Evaluate language models using score, logScore, perplexity, and batch evaluation methods'
+---
+
+## Evaluation Methods
+
+The `NgramLanguageModel` class provides multiple methods for evaluating probabilities and model quality.
+
+## score
+
+Compute the probability of a word given its context.
+
+```typescript
+score(word: string, context?: string[]): number
+```
+
+**Parameters:**
+- `word` (`string`) - The target word to score
+- `context` (`string[]`, optional) - Previous words in the sequence (default: `[]`)
+
+**Returns:** Probability value between 0 and 1
+
+**Example:**
+
+```typescript
+import { trainNgramLanguageModel } from 'bun_nltk';
+
+const sentences = [
+  ['the', 'cat', 'sat', 'on', 'the', 'mat'],
+  ['the', 'dog', 'sat', 'on', 'the', 'floor']
+];
+
+const model = trainNgramLanguageModel(sentences, {
+  order: 2,
+  model: 'lidstone'
+});
+
+// Bigram probability: P(cat | the)
+const prob = model.score('cat', ['the']);
+console.log('P(cat | the):', prob);
+
+// Unigram probability: P(cat)
+const unigramProb = model.score('cat');
+console.log('P(cat):', unigramProb);
+
+// With longer context (for trigram models)
+const trigramModel = trainNgramLanguageModel(sentences, { order: 3 });
+const trigramProb = trigramModel.score('mat', ['the', 'cat']);
+console.log('P(mat | the cat):', trigramProb);
+```
+
+**Notes:**
+- Input is automatically lowercased
+- Context is trimmed to model order - 1
+- Returns smoothed probabilities based on model type
+
+## logScore
+
+Compute the log probability (base 2) of a word given its context.
+
+```typescript
+logScore(word: string, context?: string[]): number
+```
+
+**Parameters:**
+- `word` (`string`) - The target word to score
+- `context` (`string[]`, optional) - Previous words in the sequence (default: `[]`)
+
+**Returns:** Log probability (base 2)
+
+**Example:**
+
+```typescript
+const model = trainNgramLanguageModel(sentences, {
+  order: 2,
+  model: 'kneser_ney_interpolated'
+});
+
+// Log probability
+const logProb = model.logScore('sat', ['cat']);
+console.log('log2 P(sat | cat):', logProb);
+
+// Relation to regular score
+const prob = model.score('sat', ['cat']);
+const manualLogProb = Math.log2(prob);
+console.log('Equivalent:', logProb === manualLogProb);
+```
+
+**Use cases:**
+- Numerical stability for very small probabilities
+- Computing cross-entropy and perplexity
+- Comparing models on same data
+
+## perplexity
+
+Compute the perplexity of a token sequence. Lower perplexity indicates better model fit.
+
+```typescript
+perplexity(tokens: string[]): number
+```
+
+**Parameters:**
+- `tokens` (`string[]`) - Sequence of tokens to evaluate
+
+**Returns:** Perplexity value (≥ 1)
+
+**Example:**
+
+```typescript
+const model = trainNgramLanguageModel([
+  ['the', 'cat', 'sat'],
+  ['the', 'dog', 'ran'],
+  ['a', 'bird', 'flew']
+], { order: 2, model: 'lidstone' });
+
+// Test on seen sentence
+const seenPP = model.perplexity(['the', 'cat', 'sat']);
+console.log('Perplexity (seen):', seenPP);
+
+// Test on novel sentence
+const novelPP = model.perplexity(['the', 'bird', 'sat']);
+console.log('Perplexity (novel):', novelPP);
+
+// Test on out-of-vocabulary words
+const oovPP = model.perplexity(['the', 'elephant', 'walked']);
+console.log('Perplexity (OOV):', oovPP);
+```
+
+**Interpretation:**
+- Lower perplexity = better model fit
+- Perplexity of 1 = perfect prediction
+- Higher perplexity = more uncertain predictions
+- Perplexity roughly represents "average branching factor"
+
+**How it works:**
+
+```typescript
+// Perplexity is computed as:
+// 2^(-1/N * Σ log2 P(token_i | context_i))
+
+const tokens = ['the', 'cat', 'sat'];
+const pp = model.perplexity(tokens);
+
+// Equivalent to:
+let sumLogProb = 0;
+const history = ['<s>']; // Start token from padding
+for (const token of tokens) {
+  sumLogProb += model.logScore(token, history.slice(-1));
+  history.push(token);
+}
+sumLogProb += model.logScore('</s>', history.slice(-1)); // End token
+const manualPP = 2 ** (-sumLogProb / (tokens.length + 1));
+```
+
+## evaluateBatch
+
+Evaluate multiple word-context pairs and compute perplexity in a single optimized call.
+
+```typescript
+evaluateBatch(
+  probes: LmProbe[],
+  perplexityTokens: string[]
+): { scores: number[]; perplexity: number }
+```
+
+**Parameters:**
+- `probes` (`LmProbe[]`) - Array of word-context pairs to score
+- `perplexityTokens` (`string[]`) - Token sequence for perplexity computation
+
+**Returns:** Object with:
+  - `scores` (`number[]`) - Probability scores for each probe
+  - `perplexity` (`number`) - Perplexity on the token sequence
+
+**LmProbe Type:**
+
+```typescript
+type LmProbe = {
+  word: string;
+  context?: string[];
+};
+```
+
+**Example:**
+
+```typescript
+const model = trainNgramLanguageModel([
+  ['the', 'cat', 'sat', 'on', 'the', 'mat'],
+  ['the', 'dog', 'sat', 'on', 'the', 'floor'],
+  ['a', 'bird', 'flew', 'over', 'the', 'house']
+], { order: 2, model: 'lidstone' });
+
+// Batch evaluation
+const result = model.evaluateBatch(
+  [
+    { word: 'cat', context: ['the'] },
+    { word: 'dog', context: ['the'] },
+    { word: 'sat', context: ['cat'] },
+    { word: 'flew', context: ['bird'] },
+    { word: 'mat' } // No context (unigram)
+  ],
+  ['the', 'cat', 'sat'] // Perplexity tokens
+);
+
+console.log('Scores:', result.scores);
+// [P(cat|the), P(dog|the), P(sat|cat), P(flew|bird), P(mat)]
+
+console.log('Perplexity:', result.perplexity);
+// Perplexity of ['the', 'cat', 'sat']
+```
+
+**Performance:**
+- For order ≤ 3, uses optimized native implementation
+- Processes all probes in a single pass
+- More efficient than calling `score()` and `perplexity()` separately
+
+## Model Comparison
+
+Compare different model configurations on the same test data:
+
+```typescript
+const testSentences = [
+  ['the', 'cat', 'sat', 'on', 'the', 'mat'],
+  ['a', 'dog', 'ran', 'in', 'the', 'park']
+];
+
+const trainData = [
+  ['the', 'cat', 'sat'],
+  ['the', 'dog', 'ran'],
+  ['a', 'bird', 'flew']
+];
+
+// Train different models
+const mleModel = trainNgramLanguageModel(trainData, {
+  order: 2,
+  model: 'mle'
+});
+
+const lidstoneModel = trainNgramLanguageModel(trainData, {
+  order: 2,
+  model: 'lidstone',
+  gamma: 0.1
+});
+
+const knModel = trainNgramLanguageModel(trainData, {
+  order: 2,
+  model: 'kneser_ney_interpolated',
+  discount: 0.75
+});
+
+// Compare perplexity
+for (const sentence of testSentences) {
+  console.log('Sentence:', sentence.join(' '));
+  console.log('MLE:', mleModel.perplexity(sentence));
+  console.log('Lidstone:', lidstoneModel.perplexity(sentence));
+  console.log('Kneser-Ney:', knModel.perplexity(sentence));
+  console.log('---');
+}
+```
+
+## Cross-Entropy
+
+Compute cross-entropy using log scores:
+
+```typescript
+function crossEntropy(
+  model: NgramLanguageModel,
+  tokens: string[]
+): number {
+  const sequence = [...tokens];
+  if (model.padRight) sequence.push(model.endToken);
+  
+  const leftContext = model.padLeft
+    ? Array(Math.max(0, model.order - 1)).fill(model.startToken)
+    : [];
+  
+  const history = [...leftContext];
+  let sumNegLogProb = 0;
+  
+  for (const token of sequence) {
+    const context = history.slice(-Math.max(0, model.order - 1));
+    sumNegLogProb += -model.logScore(token, context);
+    history.push(token);
+  }
+  
+  return sumNegLogProb / sequence.length;
+}
+
+const model = trainNgramLanguageModel(trainData, { order: 2 });
+const ce = crossEntropy(model, ['the', 'cat', 'sat']);
+console.log('Cross-entropy:', ce, 'bits');
+```
+
+## Complete Evaluation Example
+
+```typescript
+import { trainNgramLanguageModel } from 'bun_nltk';
+
+// Training data
+const train = [
+  ['i', 'love', 'natural', 'language', 'processing'],
+  ['machine', 'learning', 'is', 'fun'],
+  ['language', 'models', 'are', 'powerful']
+];
+
+// Test data
+const test = [
+  ['natural', 'language', 'is', 'fun'],
+  ['i', 'love', 'machine', 'learning']
+];
+
+// Train model
+const model = trainNgramLanguageModel(train, {
+  order: 2,
+  model: 'kneser_ney_interpolated'
+});
+
+// Evaluate individual probabilities
+console.log('P(language | natural):', model.score('language', ['natural']));
+console.log('log2 P(fun | is):', model.logScore('fun', ['is']));
+
+// Evaluate test sentences
+console.log('\nTest perplexities:');
+for (const sentence of test) {
+  const pp = model.perplexity(sentence);
+  console.log(`"${sentence.join(' ')}":`, pp);
+}
+
+// Batch evaluation
+const { scores, perplexity } = model.evaluateBatch(
+  [
+    { word: 'language', context: ['natural'] },
+    { word: 'learning', context: ['machine'] },
+    { word: 'fun', context: ['is'] }
+  ],
+  test[0]!
+);
+
+console.log('\nBatch scores:', scores);
+console.log('Batch perplexity:', perplexity);
+```

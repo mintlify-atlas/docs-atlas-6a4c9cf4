@@ -1,0 +1,340 @@
+---
+title: Browser Usage
+description: Using bun_nltk in the browser with WebAssembly
+---
+
+## Overview
+
+The `bun_nltk` library provides full WebAssembly support, allowing you to run NLP operations directly in the browser with near-native performance. The WASM module is self-contained and requires no external dependencies.
+
+## Installation
+
+First, install the package:
+
+```bash
+npm install bun_nltk
+```
+
+Make sure your bundler is configured to handle `.wasm` files. Most modern bundlers like Vite, Webpack 5+, and Parcel support this out of the box.
+
+## Basic Browser Example
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>bun_nltk Browser Example</title>
+</head>
+<body>
+  <h1>NLP in the Browser</h1>
+  <textarea id="input" rows="10" cols="50">
+Natural language processing is amazing! It allows computers to understand human text.
+This is a second sentence. And here's a third one.
+  </textarea>
+  <button onclick="processText()">Process</button>
+  <div id="output"></div>
+
+  <script type="module">
+    import { WasmNltk } from 'bun_nltk/wasm';
+
+    // Initialize the WASM module
+    let nltk = null;
+
+    async function initNltk() {
+      if (!nltk) {
+        // Load WASM bytes (adjust path to your bundler's output)
+        const response = await fetch('/path/to/bun_nltk.wasm');
+        const wasmBytes = new Uint8Array(await response.arrayBuffer());
+        
+        nltk = await WasmNltk.init({ wasmBytes });
+        console.log('bun_nltk initialized!');
+      }
+      return nltk;
+    }
+
+    window.processText = async function() {
+      const nltkInstance = await initNltk();
+      const text = document.getElementById('input').value;
+      
+      // Tokenize
+      const tokens = nltkInstance.tokenizeAscii(text);
+      
+      // Sentence tokenization
+      const sentences = nltkInstance.sentenceTokenizePunktAscii(text);
+      
+      // Compute metrics
+      const metrics = nltkInstance.computeAsciiMetrics(text, 2);
+      
+      // Display results
+      const output = document.getElementById('output');
+      output.innerHTML = `
+        <h2>Results</h2>
+        <h3>Tokens (${tokens.length}):</h3>
+        <p>${tokens.join(', ')}</p>
+        
+        <h3>Sentences (${sentences.length}):</h3>
+        <ol>
+          ${sentences.map(s => `<li>${s}</li>`).join('')}
+        </ol>
+        
+        <h3>Metrics:</h3>
+        <ul>
+          <li>Total tokens: ${metrics.tokens}</li>
+          <li>Unique tokens: ${metrics.uniqueTokens}</li>
+          <li>N-grams (2): ${metrics.ngrams}</li>
+          <li>Unique n-grams: ${metrics.uniqueNgrams}</li>
+        </ul>
+      `;
+    };
+  </script>
+</body>
+</html>
+```
+
+## Initialization Patterns
+
+### From URL (Recommended for Production)
+
+```javascript
+import { WasmNltk } from 'bun_nltk/wasm';
+
+// Fetch WASM module from CDN or your server
+const response = await fetch('https://cdn.example.com/bun_nltk.wasm');
+const wasmBytes = new Uint8Array(await response.arrayBuffer());
+
+const nltk = await WasmNltk.init({ wasmBytes });
+```
+
+### From Local Path (Node.js or Bun)
+
+```javascript
+import { WasmNltk } from 'bun_nltk/wasm';
+
+// Automatically loads from default path
+const nltk = await WasmNltk.init();
+
+// Or specify a custom path
+const nltkCustom = await WasmNltk.init({
+  wasmPath: './custom/path/bun_nltk.wasm'
+});
+```
+
+### Singleton Pattern
+
+For applications that need a single shared instance:
+
+```javascript
+let nltkInstance = null;
+
+export async function getNltk() {
+  if (!nltkInstance) {
+    const response = await fetch('/bun_nltk.wasm');
+    const wasmBytes = new Uint8Array(await response.arrayBuffer());
+    nltkInstance = await WasmNltk.init({ wasmBytes });
+  }
+  return nltkInstance;
+}
+
+// Usage
+const nltk = await getNltk();
+const tokens = nltk.tokenizeAscii('Hello world!');
+```
+
+## Memory Management
+
+### Memory Pool Reuse
+
+The `WasmNltk` class uses an internal memory pool to avoid repeated allocations. Memory blocks are automatically reused across operations:
+
+```javascript
+const nltk = await WasmNltk.init({ wasmBytes });
+
+// First call allocates memory for "offsets" block
+const tokens1 = nltk.tokenizeAscii('First text');
+
+// Second call reuses the same memory block if large enough
+const tokens2 = nltk.tokenizeAscii('Second text');
+
+// Larger input may trigger reallocation
+const tokens3 = nltk.tokenizeAscii('Much longer text...'.repeat(100));
+```
+
+### Memory Blocks
+
+The following memory blocks are managed internally:
+
+- `offsets` / `lengths` - Token offset arrays
+- `norm_offsets` / `norm_lengths` - Normalized token arrays
+- `sent_offsets` / `sent_lengths` - Sentence offset arrays
+- `metrics` - Metric computation output
+- `perceptron_*` - POS tagging arrays
+- `lm_*` - Language model arrays
+- `chunk_*` - Chunking arrays
+- `cyk_*` - Parser arrays
+- `nb_*` - Naive Bayes arrays
+
+### Manual Cleanup
+
+When you're done with the WASM instance, call `dispose()` to free all allocated memory:
+
+```javascript
+const nltk = await WasmNltk.init({ wasmBytes });
+
+// Use the instance
+const tokens = nltk.tokenizeAscii('Hello world');
+
+// Clean up when done
+nltk.dispose();
+
+// Don't use nltk after dispose() - create a new instance if needed
+```
+
+### Best Practices
+
+1. **Reuse instances**: Create one instance and reuse it across operations
+2. **Dispose when done**: Call `dispose()` when the instance is no longer needed
+3. **Avoid repeated initialization**: Initialize once and cache the instance
+4. **Input size limits**: The input buffer has a fixed capacity (check with errors)
+
+## Error Handling
+
+The WASM module tracks error codes internally:
+
+```javascript
+try {
+  const nltk = await WasmNltk.init({ wasmBytes });
+  const tokens = nltk.tokenizeAscii('Some text');
+} catch (error) {
+  // Errors include context information
+  console.error('WASM error:', error.message);
+  // Example: "wasm error code 1 in countNgramsAscii"
+}
+```
+
+## Input Buffer Limits
+
+The WASM module uses a pre-allocated input buffer:
+
+```javascript
+const nltk = await WasmNltk.init({ wasmBytes });
+
+// This will throw if text is too large
+try {
+  const veryLongText = 'word '.repeat(1000000);
+  nltk.tokenizeAscii(veryLongText);
+} catch (error) {
+  console.error(error.message);
+  // "input too large for wasm input buffer: 5000000 > 1048576"
+}
+```
+
+For large texts, chunk them before processing:
+
+```javascript
+function chunkText(text, maxSize = 100000) {
+  const chunks = [];
+  for (let i = 0; i < text.length; i += maxSize) {
+    chunks.push(text.slice(i, i + maxSize));
+  }
+  return chunks;
+}
+
+const chunks = chunkText(veryLongText);
+const allTokens = [];
+
+for (const chunk of chunks) {
+  allTokens.push(...nltk.tokenizeAscii(chunk));
+}
+```
+
+## Complete React Example
+
+```jsx
+import React, { useState, useEffect } from 'react';
+import { WasmNltk } from 'bun_nltk/wasm';
+
+function NlpProcessor() {
+  const [nltk, setNltk] = useState(null);
+  const [text, setText] = useState('');
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function initWasm() {
+      try {
+        const response = await fetch('/bun_nltk.wasm');
+        const wasmBytes = new Uint8Array(await response.arrayBuffer());
+        const instance = await WasmNltk.init({ wasmBytes });
+        setNltk(instance);
+        setLoading(false);
+      } catch (error) {
+        console.error('Failed to initialize WASM:', error);
+      }
+    }
+    initWasm();
+
+    // Cleanup on unmount
+    return () => {
+      if (nltk) {
+        nltk.dispose();
+      }
+    };
+  }, []);
+
+  const processText = () => {
+    if (!nltk || !text) return;
+
+    const tokens = nltk.tokenizeAscii(text);
+    const sentences = nltk.sentenceTokenizePunktAscii(text);
+    const metrics = nltk.computeAsciiMetrics(text, 2);
+    const normalized = nltk.normalizeTokensAscii(text, true);
+
+    setResults({ tokens, sentences, metrics, normalized });
+  };
+
+  if (loading) {
+    return <div>Loading WASM module...</div>;
+  }
+
+  return (
+    <div>
+      <h1>NLP Processor</h1>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={10}
+        cols={50}
+        placeholder="Enter text to process..."
+      />
+      <button onClick={processText}>Process</button>
+      
+      {results && (
+        <div>
+          <h2>Results</h2>
+          <p><strong>Tokens:</strong> {results.tokens.join(', ')}</p>
+          <p><strong>Sentences:</strong> {results.sentences.length}</p>
+          <p><strong>Normalized:</strong> {results.normalized.join(', ')}</p>
+          <pre>{JSON.stringify(results.metrics, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default NlpProcessor;
+```
+
+## Browser Compatibility
+
+- **Chrome/Edge**: Full support (v57+)
+- **Firefox**: Full support (v52+)
+- **Safari**: Full support (v11+)
+- **Node.js**: v12+ (with `--experimental-wasm-modules` flag in older versions)
+- **Bun**: Full native support
+
+## Next Steps
+
+- [Runtime API Reference](/wasm/runtime-api) - Detailed API documentation
+- [Tokenization Guide](/guides/tokenization) - Learn about tokenization methods
+- [POS Tagging](/guides/pos-tagging) - Part-of-speech tagging guide
+- [Text Classification](/advanced/classification) - Classification algorithms

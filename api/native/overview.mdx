@@ -1,0 +1,282 @@
+---
+title: Native APIs Overview
+description: Native library architecture, FFI bindings, and prebuilt binaries
+---
+
+## Overview
+
+The native library (`bun_nltk`) provides high-performance NLP operations through Zig-compiled binaries accessed via FFI (Foreign Function Interface). The native APIs offer significant performance improvements over WASM, especially for CPU-intensive operations.
+
+## Architecture
+
+### Native Library Stack
+
+```
+┌─────────────────────────────────────┐
+│     TypeScript API Layer            │
+│  (src/native.ts)                    │
+├─────────────────────────────────────┤
+│     Bun FFI Layer                   │
+│  (dlopen, ptr)                      │
+├─────────────────────────────────────┤
+│     Native Shared Library           │
+│  (bun_nltk.so/.dll/.dylib)          │
+├─────────────────────────────────────┤
+│     Zig Core Implementation         │
+│  - SIMD optimizations               │
+│  - Memory-efficient algorithms      │
+│  - Cross-platform support           │
+└─────────────────────────────────────┘
+```
+
+## Prebuilt Binaries
+
+The package ships with prebuilt binaries for common platforms:
+
+| Platform | Architecture | Library File | Path |
+|----------|-------------|--------------|------|
+| Linux | x64 | `bun_nltk.so` | `native/prebuilt/linux-x64/` |
+| Windows | x64 | `bun_nltk.dll` | `native/prebuilt/win32-x64/` |
+| macOS | x64/arm64 | `bun_nltk.dylib` | `native/prebuilt/darwin-*/` |
+
+### Loading Mechanism
+
+The library automatically loads the appropriate prebuilt binary:
+
+```typescript
+const ext = process.platform === "win32" ? "dll" 
+  : process.platform === "darwin" ? "dylib" 
+  : "so";
+
+const prebuiltLibPath = resolve(
+  import.meta.dir,
+  "..",
+  "native",
+  "prebuilt",
+  `${process.platform}-${process.arch}`,
+  `bun_nltk.${ext}`,
+);
+```
+
+### Custom Library Path
+
+You can override the library path using the `BUN_NLTK_NATIVE_LIB` environment variable:
+
+```bash
+export BUN_NLTK_NATIVE_LIB=/path/to/custom/bun_nltk.so
+```
+
+```typescript
+import { countTokensAscii } from "bun_nltk";
+
+// Will load from BUN_NLTK_NATIVE_LIB if set
+const count = countTokensAscii("Hello world");
+```
+
+## FFI Bindings
+
+### Library Loading
+
+The native library is loaded using Bun's `dlopen`:
+
+```typescript
+import { dlopen, ptr } from "bun:ffi";
+
+const lib = dlopen(nativeLibPath, {
+  bunnltk_count_tokens_ascii: {
+    args: ["ptr", "usize"],
+    returns: "u64",
+  },
+  bunnltk_tokenize_ascii: {
+    args: ["ptr", "usize", "ptr", "ptr", "usize"],
+    returns: "u64",
+  },
+  // ... more function definitions
+});
+```
+
+### Type Mappings
+
+FFI type mappings between TypeScript and Zig:
+
+| TypeScript Type | FFI Type | Zig Type | Description |
+|----------------|----------|----------|-------------|
+| `Uint8Array` | `ptr` | `[*]const u8` | Byte pointer |
+| `number` | `usize` | `usize` | Size/length |
+| `number` | `u32` | `u32` | 32-bit unsigned |
+| `bigint` | `u64` | `u64` | 64-bit unsigned |
+| `Float32Array` | `ptr` | `[*]const f32` | Float pointer |
+| `Float64Array` | `ptr` | `[*]const f64` | Double pointer |
+
+### Memory Management
+
+Memory is managed through typed arrays:
+
+```typescript
+function countTokensAscii(text: string): number {
+  const bytes = new TextEncoder().encode(text);
+  const value = lib.symbols.bunnltk_count_tokens_ascii(
+    ptr(bytes),
+    bytes.length
+  );
+  return Number(value);
+}
+```
+
+## Error Handling
+
+The native library uses error codes for failure reporting:
+
+```typescript
+function lastError(): number {
+  return lib.symbols.bunnltk_last_error_code();
+}
+
+function assertNoNativeError(context: string): void {
+  const code = lastError();
+  if (code !== 0) {
+    throw new Error(`native error code ${code} in ${context}`);
+  }
+}
+```
+
+### Error Code Convention
+
+- `0`: Success (no error)
+- `1+`: Error occurred (specific codes defined in Zig implementation)
+
+After each native call that can fail, check for errors:
+
+```typescript
+const count = lib.symbols.bunnltk_count_unique_tokens_ascii(
+  ptr(bytes),
+  bytes.length
+);
+assertNoNativeError("countUniqueTokensAscii");
+```
+
+## API Categories
+
+The native library provides functions in these categories:
+
+### 1. Tokenization
+- `countTokensAscii()` - Count tokens
+- `tokenizeAsciiNative()` - Extract tokens
+- `normalizeTokensAsciiNative()` - Normalize and filter
+- `tokenFreqDistIdsAscii()` - Token frequency distribution
+
+### 2. Sentence Segmentation
+- `sentenceTokenizePunktAsciiNative()` - Punkt sentence tokenizer
+
+### 3. N-grams & Metrics
+- `countNgramsAscii()` - Count n-grams
+- `ngramsAsciiNative()` - Extract n-grams
+- `everygramsAsciiNative()` - Extract variable-length n-grams
+- `skipgramsAsciiNative()` - Extract skip-grams
+- `computeAsciiMetrics()` - Comprehensive metrics
+
+### 4. Collocations
+- `topPmiBigramsAscii()` - Top PMI bigrams
+- `bigramWindowStatsAscii()` - Windowed bigram statistics
+
+### 5. Part-of-Speech Tagging
+- `posTagAsciiNative()` - POS tagging
+- `perceptronPredictBatchNative()` - Perceptron model inference
+
+### 6. Stemming & Lemmatization
+- `porterStemAscii()` - Porter stemmer
+- `wordnetMorphyAsciiNative()` - WordNet lemmatizer
+
+### 7. Machine Learning
+- `naiveBayesLogScoresIdsNative()` - Naive Bayes scoring
+- `linearScoresSparseIdsNative()` - Linear model scoring
+- `evaluateLanguageModelIdsNative()` - Language model evaluation
+
+### 8. Parsing & Chunking
+- `chunkIobIdsNative()` - IOB chunking
+- `cykRecognizeIdsNative()` - CYK parsing
+
+### 9. Streaming
+- `NativeFreqDistStream` - Streaming frequency distribution
+
+## Performance Characteristics
+
+### Native vs WASM vs JavaScript
+
+| Operation | Native | WASM | JavaScript |
+|-----------|--------|------|------------|
+| Token counting | **100%** | 85% | 30% |
+| Tokenization | **100%** | 80% | 35% |
+| N-gram extraction | **100%** | 75% | 25% |
+| POS tagging | **100%** | 70% | 20% |
+
+<Note>
+  Percentages are relative to native performance. Native is always fastest due to SIMD optimizations and zero-overhead FFI.
+</Note>
+
+### SIMD Optimizations
+
+The native library uses SIMD instructions for:
+
+- **Token scanning**: Parallel byte comparisons for whitespace/punctuation
+- **Normalization**: Vectorized character class checks
+- **Stopword filtering**: Batch hash lookups
+
+See [Performance APIs](/api/native/performance-apis) for details on SIMD paths.
+
+## Platform Support
+
+### Supported Platforms
+
+<Check>Linux x64 - Full support with prebuilt binaries</Check>
+<Check>Windows x64 - Full support with prebuilt binaries</Check>
+<Check>macOS x64/ARM64 - Build from source (prebuilts planned)</Check>
+
+### Unsupported Platforms
+
+For platforms without prebuilt binaries, you can:
+
+1. **Use WASM fallback**: Import from `WasmNltk`
+2. **Build from source**: Use `bun run build:zig`
+3. **Set custom path**: Use `BUN_NLTK_NATIVE_LIB` environment variable
+
+```typescript
+import { WasmNltk } from "bun_nltk";
+
+// Fallback to WASM on unsupported platforms
+const wasm = await WasmNltk.init();
+const tokens = wasm.tokenizeAscii("Hello world");
+```
+
+## Utility Functions
+
+### nativeLibraryPath()
+
+Returns the path to the loaded native library.
+
+```typescript
+import { nativeLibraryPath } from "bun_nltk";
+
+const libPath = nativeLibraryPath();
+console.log(`Native library loaded from: ${libPath}`);
+// Native library loaded from: /path/to/native/prebuilt/linux-x64/bun_nltk.so
+```
+
+## Building from Source
+
+To build the native library:
+
+```bash
+# Build for current platform
+bun run build:zig
+
+# Build prebuilt binaries (requires cross-compilation setup)
+bun run build:prebuilt
+```
+
+The built libraries will be placed in `native/prebuilt/<platform>-<arch>/`.
+
+## See Also
+
+- [Performance APIs](/api/native/performance-apis) - SIMD optimizations and scalar fallbacks
+- [WASM Runtime](/api/wasm/initialization) - WebAssembly alternative

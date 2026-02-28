@@ -1,0 +1,158 @@
+---
+title: Installation
+description: Install bun_nltk in your project with npm, bun, or pnpm
+---
+
+# Installation
+
+You can install bun_nltk using your preferred JavaScript package manager. The package ships with prebuilt native binaries for supported platforms and a WASM runtime for universal compatibility.
+
+## Install with package managers
+
+<CodeGroup>
+
+```bash npm
+npm install bun_nltk
+```
+
+```bash bun
+bun add bun_nltk
+```
+
+```bash pnpm
+pnpm add bun_nltk
+```
+
+</CodeGroup>
+
+## Platform support
+
+bun_nltk provides optimized builds for different platforms:
+
+### Native binaries (fastest)
+
+Prebuilt native binaries are included for:
+
+- **Linux x64**: `native/prebuilt/linux-x64/bun_nltk.so`
+- **Windows x64**: `native/prebuilt/win32-x64/bun_nltk.dll`
+
+The library automatically detects your platform and loads the appropriate native binary for maximum performance.
+
+<Note>
+Native binaries provide the best performance, typically 3-10x faster than WASM on most operations.
+</Note>
+
+### WASM runtime (universal)
+
+For platforms without native binaries, bun_nltk includes a WebAssembly build:
+
+- **All platforms**: `native/bun_nltk.wasm`
+
+The WASM runtime provides:
+- Universal compatibility across all platforms and runtimes
+- Browser environment support
+- Fallback for unsupported architectures (macOS, ARM, etc.)
+- Still faster than pure JavaScript implementations
+
+<Info>
+You can explicitly use the WASM runtime by importing from the `WasmNltk` wrapper class, even on platforms with native binaries.
+</Info>
+
+## Verify installation
+
+After installation, verify that bun_nltk is working correctly:
+
+```typescript
+import { tokenizeAsciiNative, countTokensAscii } from "bun_nltk";
+
+const text = "Hello world! This is a test.";
+const tokens = tokenizeAsciiNative(text);
+const count = countTokensAscii(text);
+
+console.log(`Tokens: ${tokens.join(", ")}`);
+console.log(`Count: ${count}`);
+// Output:
+// Tokens: hello, world, this, is, a, test
+// Count: 6
+```
+
+<Tip>
+No build steps or lifecycle scripts are required - bun_nltk works immediately after installation.
+</Tip>
+
+## Environment variables
+
+For advanced use cases, you can customize the native library path:
+
+```bash
+export BUN_NLTK_NATIVE_LIB=/path/to/custom/bun_nltk.so
+```
+
+This is useful for:
+- Local development with custom builds
+- Testing new native implementations
+- Deployment environments with specific binary requirements
+
+## Troubleshooting
+
+### Platform not supported
+
+If you see an error about missing native libraries:
+
+```
+native library not found for platform=darwin arch=arm64
+Supported prebuilt targets: linux-x64, win32-x64
+```
+
+You have two options:
+
+1. **Use the WASM runtime** (recommended):
+
+```typescript
+import { WasmNltk } from "bun_nltk";
+
+const wasm = new WasmNltk();
+await wasm.init();
+
+const tokens = wasm.tokenizeAscii("Hello world!");
+```
+
+2. **Build from source** (advanced):
+
+```bash
+# Clone the repository
+git clone https://github.com/Seyamalam/bun_nltk.git
+cd bun_nltk
+
+# Build native library
+bun run build:zig
+
+# Build WASM
+bun run build:wasm
+```
+
+### Import errors
+
+If you encounter TypeScript import errors, ensure your `tsconfig.json` includes:
+
+```json
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun-types"]
+  }
+}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Learn the basics with a quick example
+  </Card>
+  
+  <Card title="API reference" icon="code" href="/api-reference">
+    Explore all available functions
+  </Card>
+</CardGroup>

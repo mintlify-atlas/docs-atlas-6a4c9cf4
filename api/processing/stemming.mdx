@@ -1,0 +1,83 @@
+---
+title: 'Stemming'
+description: 'Porter stemmer implementation for reducing words to root forms'
+---
+
+## porterStemAscii
+
+Reduces a single word to its stem using the Porter stemming algorithm.
+
+<ParamField path="token" type="string" required>
+  Single word token to stem (ASCII text)
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Stemmed form of the input token
+</ResponseField>
+
+```typescript
+import { porterStemAscii } from 'bun_nltk';
+
+const stem1 = porterStemAscii("running");
+// Returns: "run"
+
+const stem2 = porterStemAscii("flies");
+// Returns: "fli"
+
+const stem3 = porterStemAscii("generalization");
+// Returns: "gener"
+
+const stem4 = porterStemAscii("connection");
+// Returns: "connect"
+```
+
+<Note>
+  The Porter stemmer is a rule-based algorithm that removes common morphological suffixes. It's fast but may produce non-word stems.
+</Note>
+
+## porterStemAsciiTokens
+
+Applies Porter stemming to an array of tokens.
+
+<ParamField path="tokens" type="string[]" required>
+  Array of word tokens to stem
+</ParamField>
+
+<ResponseField name="return" type="string[]">
+  Array of stemmed tokens in the same order
+</ResponseField>
+
+```typescript
+import { porterStemAsciiTokens } from 'bun_nltk';
+
+const tokens = ["running", "flies", "happily", "connected"];
+const stems = porterStemAsciiTokens(tokens);
+// Returns: ["run", "fli", "happili", "connect"]
+```
+
+### Common Use Cases
+
+**Document preprocessing for search:**
+```typescript
+import { tokenizeAsciiNative, porterStemAsciiTokens } from 'bun_nltk';
+
+const document = "The runners were running quickly through the connected pathways";
+const tokens = tokenizeAsciiNative(document);
+const stems = porterStemAsciiTokens(tokens);
+// Process stems for indexing
+```
+
+**Feature extraction for classification:**
+```typescript
+import { normalizeTokensAsciiNative, porterStemAsciiTokens } from 'bun_nltk';
+
+const text = "Machine learning algorithms are learning from data";
+const normalized = normalizeTokensAsciiNative(text);
+const stemmed = porterStemAsciiTokens(normalized);
+// Returns: ["machin", "learn", "algorithm", "learn", "data"]
+// Note: "learning" appears twice with same stem "learn"
+```
+
+<Warning>
+  Porter stemming is aggressive and may produce stems that aren't valid English words. For applications requiring valid words, consider using lemmatization instead.
+</Warning>

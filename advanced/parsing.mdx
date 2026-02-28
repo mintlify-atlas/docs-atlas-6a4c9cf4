@@ -1,0 +1,387 @@
+---
+title: "Parsing"
+description: "Parse sentences with context-free grammars using CYK, Earley, and probabilistic chart parsers"
+---
+
+## Overview
+
+bun_nltk provides multiple parsing algorithms for context-free grammars (CFG) and probabilistic context-free grammars (PCFG).
+
+## Grammar Formats
+
+### CFG Grammar Syntax
+
+```typescript
+import { parseCfgGrammar } from "bun_nltk";
+
+const grammarText = `
+S -> NP VP
+NP -> Det N | N
+VP -> V NP | V
+Det -> 'the' | 'a'
+N -> 'cat' | 'dog' | 'mat'
+V -> 'sat' | 'chased'
+`;
+
+const grammar = parseCfgGrammar(grammarText);
+```
+
+### Grammar Rule Syntax
+
+- **Format**: `LHS -> RHS1 | RHS2 | ...`
+- **Terminals**: Quoted strings `'word'` or `"word"`
+- **Nonterminals**: Unquoted symbols
+- **Alternatives**: Separated by `|`
+- **Comments**: Lines starting with `#`
+
+### PCFG Grammar Syntax
+
+Add probabilities in square brackets:
+
+```typescript
+import { parsePcfgGrammar } from "bun_nltk";
+
+const pcfgText = `
+S -> NP VP [1.0]
+NP -> Det N [0.6] | N [0.4]
+VP -> V NP [0.7] | V [0.3]
+Det -> 'the' [0.7] | 'a' [0.3]
+N -> 'cat' [0.5] | 'dog' [0.3] | 'mat' [0.2]
+V -> 'sat' [0.6] | 'chased' [0.4]
+`;
+
+const grammar = parsePcfgGrammar(pcfgText);
+```
+
+**Probability Notes:**
+- Probabilities for each LHS should sum to 1.0
+- Omitted probabilities are distributed uniformly
+- Format: `[0.7]` after RHS
+
+## Chart Parser (CYK)
+
+The CYK algorithm converts grammars to Chomsky Normal Form and uses dynamic programming.
+
+### Basic Parsing
+
+```typescript
+import { chartParse, parseCfgGrammar } from "bun_nltk";
+
+const grammar = parseCfgGrammar(`
+S -> NP VP
+NP -> Det N
+VP -> V NP
+Det -> 'the'
+N -> 'cat' | 'dog'
+V -> 'chased'
+`);
+
+const tokens = ["the", "cat", "chased", "the", "dog"];
+const trees = chartParse(tokens, grammar);
+
+console.log(trees[0]);
+```
+
+**Output:**
+```javascript
+{
+  label: "S",
+  children: [
+    {
+      label: "NP",
+      children: [
+        { label: "Det", children: ["the"] },
+        { label: "N", children: ["cat"] }
+      ]
+    },
+    {
+      label: "VP",
+      children: [
+        { label: "V", children: ["chased"] },
+        {
+          label: "NP",
+          children: [
+            { label: "Det", children: ["the"] },
+            { label: "N", children: ["dog"] }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Controlling Parse Trees
+
+```typescript
+const trees = chartParse(tokens, grammar, {
+  maxTrees: 5,           // Limit number of parses
+  startSymbol: "S"       // Override start symbol
+});
+```
+
+## Earley Parser
+
+The Earley algorithm handles arbitrary CFGs without conversion.
+
+### Recognition Only
+
+```typescript
+import { earleyRecognize } from "bun_nltk";
+
+const isValid = earleyRecognize(tokens, grammar);
+console.log(isValid); // true or false
+```
+
+### Full Parsing
+
+```typescript
+import { earleyParse } from "bun_nltk";
+
+const trees = earleyParse(tokens, grammar, {
+  maxTrees: 10
+});
+```
+
+**Note:** `earleyParse` uses recognition to validate, then falls back to chart parsing for tree construction.
+
+## Probabilistic Parsing
+
+PCFG parsing finds the most likely parse tree.
+
+### Basic PCFG Parsing
+
+```typescript
+import { probabilisticChartParse, parsePcfgGrammar } from "bun_nltk";
+
+const grammar = parsePcfgGrammar(`
+S -> NP VP [1.0]
+NP -> Det N [0.7] | 'I' [0.3]
+VP -> V NP [0.8] | V [0.2]
+Det -> 'the' [1.0]
+N -> 'dog' [0.6] | 'cat' [0.4]
+V -> 'saw' [1.0]
+`);
+
+const tokens = ["I", "saw", "the", "dog"];
+const result = probabilisticChartParse(tokens, grammar);
+
+if (result) {
+  console.log("Parse tree:", result.tree);
+  console.log("Probability:", result.prob);
+  console.log("Log probability:", result.logProb);
+}
+```
+
+**Output:**
+```javascript
+{
+  tree: { label: "S", children: [...] },
+  prob: 0.168,
+  logProb: -2.57
+}
+```
+
+## Text Parsing Helpers
+
+Convenience functions that tokenize and parse text.
+
+### Parse Text with CFG
+
+```typescript
+import { parseTextWithCfg } from "bun_nltk";
+
+const grammarText = `
+S -> NP VP
+NP -> 'cats' | 'dogs'
+VP -> 'sleep' | 'run'
+`;
+
+const trees = parseTextWithCfg("cats sleep", grammarText, {
+  normalizeTokens: true  // Convert to lowercase
+});
+```
+
+### Parse Text with Earley
+
+```typescript
+import { parseTextWithEarley } from "bun_nltk";
+
+const trees = parseTextWithEarley("the dog ran", grammarText);
+```
+
+### Parse Text with PCFG
+
+```typescript
+import { parseTextWithPcfg } from "bun_nltk";
+
+const result = parseTextWithPcfg("I saw the dog", pcfgText);
+```
+
+## Advanced Grammar Examples
+
+### Arithmetic Expression Grammar
+
+```typescript
+const mathGrammar = parseCfgGrammar(`
+Expr -> Expr '+' Term | Expr '-' Term | Term
+Term -> Term '*' Factor | Term '/' Factor | Factor
+Factor -> '(' Expr ')' | Number
+Number -> '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+`);
+
+const tokens = ["3", "+", "4", "*", "5"];
+const trees = chartParse(tokens, mathGrammar);
+```
+
+### Simple English Grammar
+
+```typescript
+const englishGrammar = parsePcfgGrammar(`
+S -> NP VP [1.0]
+NP -> Det Nominal [0.6] | ProperNoun [0.3] | NP PP [0.1]
+Nominal -> Noun [0.7] | Nominal PP [0.3]
+VP -> Verb [0.4] | Verb NP [0.4] | Verb NP PP [0.2]
+PP -> Prep NP [1.0]
+
+Det -> 'the' [0.6] | 'a' [0.4]
+Noun -> 'dog' [0.3] | 'cat' [0.3] | 'park' [0.4]
+Verb -> 'chased' [0.5] | 'saw' [0.5]
+Prep -> 'in' [0.6] | 'with' [0.4]
+ProperNoun -> 'John' [0.5] | 'Mary' [0.5]
+`, { startSymbol: "S" });
+```
+
+## Working with Parse Trees
+
+### Traverse Parse Tree
+
+```typescript
+import type { ParseTree } from "bun_nltk";
+
+function printTree(tree: ParseTree, indent = 0): void {
+  const prefix = " ".repeat(indent);
+  console.log(`${prefix}(${tree.label}`);
+  
+  for (const child of tree.children) {
+    if (typeof child === "string") {
+      console.log(`${prefix}  ${child}`);
+    } else {
+      printTree(child, indent + 2);
+    }
+  }
+  
+  console.log(`${prefix})`);
+}
+```
+
+### Extract Terminals
+
+```typescript
+function getTerminals(tree: ParseTree): string[] {
+  const result: string[] = [];
+  
+  for (const child of tree.children) {
+    if (typeof child === "string") {
+      result.push(child);
+    } else {
+      result.push(...getTerminals(child));
+    }
+  }
+  
+  return result;
+}
+
+const sentence = getTerminals(trees[0]);
+console.log(sentence.join(" "));
+```
+
+### Find Subtrees by Label
+
+```typescript
+function findSubtrees(tree: ParseTree, label: string): ParseTree[] {
+  const results: ParseTree[] = [];
+  
+  if (tree.label === label) {
+    results.push(tree);
+  }
+  
+  for (const child of tree.children) {
+    if (typeof child !== "string") {
+      results.push(...findSubtrees(child, label));
+    }
+  }
+  
+  return results;
+}
+
+const nounPhrases = findSubtrees(trees[0], "NP");
+```
+
+## Performance Optimization
+
+The parser uses native code for:
+- CYK recognition (bitset operations)
+- CNF conversion and caching
+- Chart cell operations
+
+```typescript
+// Native optimization automatically enabled
+const trees = chartParse(tokens, grammar);
+```
+
+## Type Definitions
+
+```typescript
+export type CfgProduction = {
+  lhs: string;
+  rhs: string[];
+};
+
+export type CfgGrammar = {
+  startSymbol: string;
+  productions: CfgProduction[];
+};
+
+export type PcfgProduction = {
+  lhs: string;
+  rhs: string[];
+  prob: number;
+};
+
+export type PcfgGrammar = {
+  startSymbol: string;
+  productions: PcfgProduction[];
+};
+
+export type ParseTree = {
+  label: string;
+  children: Array<ParseTree | string>;
+};
+
+export type ProbabilisticParse = {
+  tree: ParseTree;
+  logProb: number;
+  prob: number;
+};
+```
+
+## API Reference
+
+### `parseCfgGrammar(text, options?)`
+Parses CFG grammar from text.
+
+### `parsePcfgGrammar(text, options?)`
+Parses PCFG grammar from text.
+
+### `chartParse(tokens, grammar, options?)`
+CYK chart parser returning parse trees.
+
+### `earleyRecognize(tokens, grammar, options?)`
+Earley recognition (returns boolean).
+
+### `earleyParse(tokens, grammar, options?)`
+Earley parsing (returns parse trees).
+
+### `probabilisticChartParse(tokens, grammar, options?)`
+PCFG parser returning best parse with probability.

@@ -1,0 +1,196 @@
+---
+title: 'Punkt Model'
+description: 'Train and manage Punkt sentence segmentation models'
+---
+
+## trainPunktModel
+
+Train a Punkt sentence segmentation model on text data.
+
+<ParamField path="text" type="string" required>
+  Training text to learn abbreviations, collocations, and sentence starters
+</ParamField>
+
+<ParamField path="options" type="PunktTrainingOptions">
+  Optional training configuration
+</ParamField>
+
+<ParamField path="options.minAbbrevCount" type="number" default="2">
+  Minimum occurrences for a token to be considered an abbreviation
+</ParamField>
+
+<ParamField path="options.minCollocationCount" type="number" default="2">
+  Minimum occurrences for a token pair to be considered a collocation
+</ParamField>
+
+<ParamField path="options.minSentenceStarterCount" type="number" default="2">
+  Minimum occurrences for a word to be considered a sentence starter
+</ParamField>
+
+<ResponseField name="model" type="PunktModelSerialized">
+  Trained Punkt model containing learned patterns
+</ResponseField>
+
+```typescript
+import { trainPunktModel } from 'bun_nltk';
+
+const trainingCorpus = `
+  Dr. Smith works at the hospital. He specializes in cardiology.
+  Prof. Johnson teaches at the university. She published many papers.
+  The N.A.S.A. mission was successful. U.S. officials celebrated.
+`;
+
+const model = trainPunktModel(trainingCorpus);
+console.log(model);
+// {
+//   version: 1,
+//   abbreviations: ["dr", "n.a.s.a", "prof", "u.s"],
+//   collocations: [["dr", "smith"], ["prof", "johnson"]],
+//   sentenceStarters: ["he", "she", "the", "u.s"]
+// }
+
+// Customize training thresholds
+const strictModel = trainPunktModel(trainingCorpus, {
+  minAbbrevCount: 3,
+  minCollocationCount: 3,
+  minSentenceStarterCount: 3
+});
+```
+
+### What Gets Learned
+
+- **Abbreviations**: Tokens followed by period that typically appear before lowercase words
+- **Collocations**: Abbreviation-word pairs that commonly occur together (e.g., "Dr. Smith")
+- **Sentence Starters**: Words that frequently begin sentences in the training data
+
+## parsePunktModel
+
+Parse a Punkt model from JSON string or object.
+
+<ParamField path="payload" type="string | PunktModelSerialized" required>
+  JSON string or model object to parse
+</ParamField>
+
+<ResponseField name="model" type="PunktModelSerialized">
+  Parsed Punkt model
+</ResponseField>
+
+```typescript
+import { parsePunktModel } from 'bun_nltk';
+
+const json = `{
+  "version": 1,
+  "abbreviations": ["dr", "mr", "ms"],
+  "collocations": [["dr", "smith"]],
+  "sentenceStarters": ["he", "she", "the"]
+}`;
+
+const model = parsePunktModel(json);
+
+// Also accepts object
+const model2 = parsePunktModel({
+  version: 1,
+  abbreviations: ["inc", "corp"],
+  collocations: [],
+  sentenceStarters: []
+});
+```
+
+## serializePunktModel
+
+Serialize a Punkt model to JSON string for storage.
+
+<ParamField path="model" type="PunktModelSerialized" required>
+  Punkt model to serialize
+</ParamField>
+
+<ResponseField name="json" type="string">
+  JSON string representation of the model
+</ResponseField>
+
+```typescript
+import { trainPunktModel, serializePunktModel } from 'bun_nltk';
+
+const model = trainPunktModel("Dr. Smith arrived. He was late.");
+const json = serializePunktModel(model);
+
+// Save to file
+await Bun.write("punkt-model.json", json);
+
+// Load later
+const loaded = parsePunktModel(await Bun.file("punkt-model.json").text());
+```
+
+## defaultPunktModel
+
+Get the default Punkt model with common English abbreviations.
+
+<ResponseField name="model" type="PunktModelSerialized">
+  Default Punkt model
+</ResponseField>
+
+```typescript
+import { defaultPunktModel } from 'bun_nltk';
+
+const model = defaultPunktModel();
+console.log(model.abbreviations);
+// ["a.m", "dr", "e.g", "etc", "i.e", "jr", "mr", "mrs", "ms", "p.m", "prof", "sr", "st", "u.k", "u.s", "vs"]
+
+console.log(model.collocations);
+// [] (empty by default)
+
+console.log(model.sentenceStarters);
+// [] (empty by default)
+```
+
+### Default Abbreviations
+
+The default model includes:
+- Titles: `mr`, `mrs`, `ms`, `dr`, `prof`, `sr`, `jr`
+- Common: `st`, `vs`, `etc`, `e.g`, `i.e`
+- Geographic: `u.s`, `u.k`
+- Time: `a.m`, `p.m`
+
+## PunktModelSerialized Type
+
+```typescript
+type PunktModelSerialized = {
+  version: number;
+  abbreviations: string[];
+  collocations: Array<[string, string]>;
+  sentenceStarters: string[];
+};
+```
+
+### Usage Example
+
+```typescript
+import {
+  trainPunktModel,
+  serializePunktModel,
+  parsePunktModel,
+  sentenceTokenizePunkt
+} from 'bun_nltk';
+
+// Train on domain-specific corpus
+const medicalText = `
+  Dr. Anderson specializes in oncology. Prof. Lee works in immunology.
+  The N.I.H. funded the research. Results were published in Jan. 2024.
+`;
+
+const model = trainPunktModel(medicalText);
+
+// Serialize for storage
+const json = serializePunktModel(model);
+await Bun.write("medical-punkt.json", json);
+
+// Load and use later
+const loadedModel = parsePunktModel(
+  await Bun.file("medical-punkt.json").text()
+);
+
+const text = "Dr. Anderson reviewed the N.I.H. grant. She approved it.";
+const sentences = sentenceTokenizePunkt(text, loadedModel);
+console.log(sentences);
+// ["Dr. Anderson reviewed the N.I.H. grant.", "She approved it."]
+```

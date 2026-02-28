@@ -1,0 +1,314 @@
+---
+title: WASM Performance
+description: WebAssembly performance characteristics and browser benchmarks
+---
+
+## Overview
+
+bun_nltk compiles to WebAssembly for browser and edge runtime environments. The WASM build maintains significant performance advantages over Python while providing near-native speed.
+
+## WASM vs Native vs Python
+
+Three-way comparison on the 64MB synthetic dataset:
+
+```bash
+bun run bench:compare:wasm
+```
+
+| Runtime | Token/N-gram Operations (sec) | Speedup vs Python |
+|---|---:|---:|
+| **Zig Native** (via Bun FFI) | 1.719 | 7.70x |
+| **Zig WASM** | 4.150 | 3.19x |
+| **Python NLTK** | 13.241 | 1.00x (baseline) |
+
+### Key Insights
+
+**WASM Performance**: 3.19x faster than Python
+- Still significantly faster than Python baseline
+- Overhead from WASM runtime is manageable
+- Good choice for browser/edge deployments
+
+**Native Performance**: 7.70x faster than Python
+- Best performance for server-side workloads
+- Direct memory access via Bun FFI
+- SIMD optimizations enabled
+
+**WASM vs Native Gap**: ~2.4x slower than native
+- WASM overhead from sandboxing and linear memory
+- No SIMD in WASM build (uses scalar fallback)
+- Still provides excellent absolute performance
+
+## Browser WASM Benchmarks
+
+bun_nltk includes automated browser benchmarks in CI:
+
+```bash
+bun run bench:browser:wasm
+```
+
+### Test Environment
+
+**Browsers Tested:**
+- Chromium (headless)
+- Firefox (headless)
+
+**Workloads:**
+- Token counting and n-gram operations
+- Punkt sentence tokenization
+- Language model evaluation
+- Chunk parsing (IOB)
+- WordNet morphology
+
+### Browser Performance
+
+Browser WASM benchmarks run in CI with strict mode enforcement. Each workload has per-browser thresholds to catch performance regressions.
+
+**Memory Management:**
+- WASM memory pool reuse via `WasmNltk` wrapper
+- Reduced allocation overhead for repeated operations
+- Explicit disposal for memory cleanup
+
+## WASM API Usage
+
+### Initialization
+
+```typescript
+import { WasmNltk } from 'bun_nltk';
+
+// Initialize WASM runtime
+const wasm = await WasmNltk.init();
+
+// Or provide custom WASM bytes
+const wasm = await WasmNltk.init({
+  wasmBytes: await fetch('/path/to/bun_nltk.wasm').then(r => r.arrayBuffer()),
+});
+```
+
+### Token Operations
+
+```typescript
+// Count tokens
+const count = wasm.countTokensAscii(text);
+
+// Count n-grams
+const bigramCount = wasm.countNgramsAscii(text, 2);
+
+// Batch metrics
+const metrics = wasm.computeAsciiMetrics(text, 3);
+console.log(metrics.tokens, metrics.uniqueTokens);
+```
+
+### Text Processing
+
+```typescript
+// Tokenize
+const tokens = wasm.tokenizeAscii(text);
+
+// Normalize with stopword removal
+const normalized = wasm.normalizeTokensAscii(text, true);
+
+// Sentence tokenization (Punkt)
+const sentences = wasm.sentenceTokenizePunktAscii(text);
+```
+
+### WordNet Morphology
+
+```typescript
+// Get base form
+const lemma = wasm.wordnetMorphyAscii('running', 'v');
+console.log(lemma); // 'run'
+```
+
+### Advanced Operations
+
+```typescript
+// POS tagging (Perceptron)
+const tagIds = wasm.perceptronPredictBatch(
+  featureIds,
+  tokenOffsets,
+  weights,
+  modelFeatureCount,
+  tagCount
+);
+
+// Language model evaluation
+const result = wasm.evaluateLanguageModelIds({
+  tokenIds,
+  sentenceOffsets,
+  order: 3,
+  model: 2, // Kneser-Ney
+  discount: 0.75,
+  vocabSize,
+  probeContextFlat,
+  probeContextLens,
+  probeWords,
+  perplexityTokens,
+});
+
+// Chunk parsing (IOB)
+const chunks = wasm.chunkIobIds({
+  tokenTagIds,
+  atomAllowedOffsets,
+  atomAllowedLengths,
+  atomAllowedFlat,
+  atomMins,
+  atomMaxs,
+  ruleAtomOffsets,
+  ruleAtomCounts,
+  ruleLabelIds,
+});
+```
+
+### Cleanup
+
+```typescript
+// Dispose WASM instance when done
+wasm.dispose();
+```
+
+## WASM Binary Size
+
+The WASM build is optimized for browser delivery:
+
+```bash
+bun run build:wasm          # Build WASM
+bun run wasm:size:check     # Check size budget
+```
+
+**Build Configuration:**
+- `ReleaseSmall` optimization mode
+- Stripped debug symbols
+- Minimal runtime overhead
+
+**Size Budget:**
+CI enforces WASM binary size limits to ensure fast browser loading.
+
+## Browser Performance Tips
+
+### 1. Reuse WASM Instance
+
+```typescript
+// Good: Single instance, multiple operations
+const wasm = await WasmNltk.init();
+for (const text of texts) {
+  const count = wasm.countTokensAscii(text);
+}
+wasm.dispose();
+
+// Bad: Reinitializing for each operation
+for (const text of texts) {
+  const wasm = await WasmNltk.init();
+  const count = wasm.countTokensAscii(text);
+  wasm.dispose();
+}
+```
+
+### 2. Batch Operations
+
+```typescript
+// Use batch APIs when available
+const metrics = wasm.computeAsciiMetrics(text, 3);
+// Returns: { tokens, uniqueTokens, ngrams, uniqueNgrams }
+
+// Instead of multiple calls
+const tokens = wasm.countTokensAscii(text);
+const ngrams = wasm.countNgramsAscii(text, 3);
+```
+
+### 3. Lazy Initialization
+
+```typescript
+let wasmInstance: WasmNltk | null = null;
+
+async function getWasm(): Promise<WasmNltk> {
+  if (!wasmInstance) {
+    wasmInstance = await WasmNltk.init();
+  }
+  return wasmInstance;
+}
+```
+
+### 4. Preload WASM Module
+
+```html
+<!-- Add to HTML head -->
+<link rel="modulepreload" href="/node_modules/bun_nltk/native/bun_nltk.wasm" as="fetch" crossorigin>
+```
+
+## WASM vs Native Trade-offs
+
+### When to Use WASM
+
+**Browser/Edge Runtimes**
+- Client-side text processing
+- Edge computing (Cloudflare Workers, Deno Deploy)
+- Offline-capable web applications
+
+**Portability**
+- Platform-agnostic deployment
+- No native binary dependencies
+- Consistent behavior across environments
+
+**Security Sandboxing**
+- Sandboxed execution environment
+- Memory safety guarantees
+- Limited system access
+
+### When to Use Native
+
+**Server-Side Workloads**
+- Maximum throughput required
+- Bun/Node.js backend services
+- Batch processing pipelines
+
+**SIMD Benefits**
+- Large text corpora
+- Token-heavy operations
+- High-frequency operations
+
+**Memory Efficiency**
+- Lower memory overhead
+- Direct memory management
+- Better cache utilization
+
+## WASM Feature Parity
+
+The following operations have WASM equivalents:
+
+| Feature | Native API | WASM API |
+|---|---|---|
+| Token counting | `countTokensAscii` | `wasm.countTokensAscii` |
+| N-gram counting | `countNgramsAscii` | `wasm.countNgramsAscii` |
+| Tokenization | `tokenizeAsciiNative` | `wasm.tokenizeAscii` |
+| Normalization | `normalizeTokensAsciiNative` | `wasm.normalizeTokensAscii` |
+| Punkt sentence split | `sentenceTokenizePunktAsciiNative` | `wasm.sentenceTokenizePunktAscii` |
+| WordNet morphy | `wordnetMorphyAsciiNative` | `wasm.wordnetMorphyAscii` |
+| Perceptron inference | `perceptronPredictBatchNative` | `wasm.perceptronPredictBatch` |
+| LM evaluation | `evaluateLanguageModelIdsNative` | `wasm.evaluateLanguageModelIds` |
+| Chunk IOB parsing | `chunkIobIdsNative` | `wasm.chunkIobIds` |
+
+## Performance Regression Testing
+
+Browser WASM benchmarks run in CI for every PR:
+
+```yaml
+# .github/workflows/ci.yml
+- name: Browser WASM Benchmark
+  run: bun run bench:browser:wasm
+```
+
+**Validation:**
+- Per-workload performance thresholds
+- Cross-browser consistency checks
+- WASM size budget enforcement
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Native Benchmarks" icon="gauge-high" href="/benchmarks/native-vs-python">
+    See detailed native vs Python comparison
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Explore WASM API documentation
+  </Card>
+</CardGroup>

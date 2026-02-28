@@ -1,0 +1,167 @@
+---
+title: WASM Initialization
+description: Initialize the WebAssembly runtime for bun_nltk
+---
+
+## Overview
+
+The `WasmNltk` class provides a WebAssembly-based runtime for bun_nltk operations. It offers cross-platform compatibility and can run in browsers, Bun, Node.js, and other JavaScript environments.
+
+## Static Methods
+
+### WasmNltk.init()
+
+Initializes a new WebAssembly NLTK instance.
+
+```typescript
+static async init(init?: WasmNltkInit): Promise<WasmNltk>
+```
+
+#### Parameters
+
+<ParamField path="init" type="WasmNltkInit" optional>
+  Initialization options for the WASM runtime.
+</ParamField>
+
+#### WasmNltkInit Type
+
+```typescript
+type WasmNltkInit = {
+  wasmBytes?: Uint8Array;  // Pre-loaded WASM binary
+  wasmPath?: string;        // Custom path to WASM file
+};
+```
+
+<ParamField path="wasmBytes" type="Uint8Array" optional>
+  Pre-loaded WebAssembly binary bytes. If provided, the WASM module will be instantiated from these bytes instead of loading from the filesystem.
+</ParamField>
+
+<ParamField path="wasmPath" type="string" optional>
+  Custom path to the WASM file. Defaults to `../native/bun_nltk.wasm` relative to the module directory.
+</ParamField>
+
+#### Returns
+
+Returns a `Promise<WasmNltk>` that resolves to an initialized WASM NLTK instance.
+
+#### Example
+
+```typescript
+import { WasmNltk } from "bun_nltk";
+
+// Initialize with default settings
+const wasm = await WasmNltk.init();
+
+// Initialize with custom WASM path
+const wasmCustom = await WasmNltk.init({
+  wasmPath: "/path/to/custom/bun_nltk.wasm"
+});
+
+// Initialize with pre-loaded WASM bytes
+const wasmBytes = await fetch("/path/to/bun_nltk.wasm")
+  .then(r => r.arrayBuffer())
+  .then(b => new Uint8Array(b));
+
+const wasmPreloaded = await WasmNltk.init({ wasmBytes });
+```
+
+## Instance Methods
+
+### dispose()
+
+Frees all allocated memory blocks and cleans up the WASM instance.
+
+```typescript
+dispose(): void
+```
+
+<Warning>
+  Always call `dispose()` when you're done with a `WasmNltk` instance to prevent memory leaks. After calling `dispose()`, the instance should not be used anymore.
+</Warning>
+
+#### Example
+
+```typescript
+const wasm = await WasmNltk.init();
+
+// Use the WASM instance
+const tokens = wasm.tokenizeAscii("Hello world");
+
+// Clean up when done
+wasm.dispose();
+```
+
+## Memory Management
+
+The WASM runtime uses an internal memory pool system:
+
+- **Input Buffer**: Fixed-size buffer for text input (capacity determined at compile time)
+- **Memory Blocks**: Dynamically allocated blocks for outputs (offsets, lengths, metrics, etc.)
+- **Automatic Reuse**: Blocks are reused across operations when possible
+
+### Input Buffer Capacity
+
+The WASM runtime has a fixed input buffer capacity. If you try to process text larger than this capacity, an error will be thrown:
+
+```typescript
+const wasm = await WasmNltk.init();
+
+try {
+  const hugeText = "a".repeat(10_000_000);
+  wasm.tokenizeAscii(hugeText); // May throw if exceeds capacity
+} catch (error) {
+  console.error(error); // "input too large for wasm input buffer"
+}
+```
+
+## Error Handling
+
+The WASM runtime checks for errors after each operation. If an error occurs, it will throw with a descriptive message:
+
+```typescript
+const wasm = await WasmNltk.init();
+
+try {
+  const result = wasm.countNgramsAscii("Hello world", -1); // Invalid n
+} catch (error) {
+  console.error(error); // "wasm error code X in countNgramsAscii"
+}
+```
+
+## Best Practices
+
+1. **Reuse Instances**: Create one `WasmNltk` instance and reuse it for multiple operations
+2. **Memory Cleanup**: Always call `dispose()` when done, especially in long-running applications
+3. **Input Size**: Be aware of input buffer limitations for very large texts
+4. **Browser Usage**: In browsers, consider lazy-loading the WASM module on demand
+
+```typescript
+// Good: Reuse instance
+const wasm = await WasmNltk.init();
+for (const text of texts) {
+  const tokens = wasm.tokenizeAscii(text);
+}
+wasm.dispose();
+
+// Bad: Creating new instances repeatedly
+for (const text of texts) {
+  const wasm = await WasmNltk.init();
+  const tokens = wasm.tokenizeAscii(text);
+  wasm.dispose();
+}
+```
+
+## Platform Compatibility
+
+The WASM runtime works across all JavaScript environments:
+
+- **Bun**: Native support
+- **Node.js**: Requires Node 16+ with WebAssembly support
+- **Browsers**: Modern browsers with WebAssembly support
+- **Deno**: Full compatibility
+- **Edge runtimes**: Cloudflare Workers, Vercel Edge Functions, etc.
+
+## See Also
+
+- [WASM Methods](/api/wasm/methods) - All available WASM instance methods
+- [Native APIs](/api/native/overview) - Native library alternative

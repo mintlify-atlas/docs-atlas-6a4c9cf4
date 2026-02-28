@@ -1,0 +1,411 @@
+---
+title: Semantic Relations
+description: Navigate WordNet semantic relationships between synsets
+---
+
+## Overview
+
+WordNet organizes concepts through semantic relations that connect synsets. bun_nltk provides methods to traverse these relationships, enabling semantic analysis and concept hierarchies.
+
+## Relation Types
+
+WordNet supports four primary semantic relations:
+
+| Relation | Description | Example |
+|----------|-------------|----------|
+| **Hypernym** | More general concept ("is-a" parent) | dog → canine → mammal |
+| **Hyponym** | More specific concept ("is-a" child) | vehicle → car → sedan |
+| **Similar To** | Related/similar concept (mainly adjectives) | wet ↔ damp |
+| **Antonym** | Opposite concept | hot ↔ cold |
+
+## Methods
+
+### hypernyms
+
+Returns more general synsets (superordinates) in the taxonomy.
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Get synset for "dog"
+const dogSynset = wordnet.synsets('dog', 'n')[0];
+
+if (dogSynset) {
+  // Get immediate hypernyms
+  const parents = wordnet.hypernyms(dogSynset);
+  parents.forEach(parent => {
+    console.log(`${dogSynset.lemmas[0]} is a ${parent.lemmas[0]}`);
+    // "dog is a canine"
+    // "dog is a domestic_animal"
+  });
+}
+
+// Can also use synset ID directly
+const parents = wordnet.hypernyms('dog.n.01');
+```
+
+**Parameters:**
+- `idOrSynset: string | WordNetSynset` - Synset ID or synset object
+
+**Returns:**
+- `WordNetSynset[]` - Array of hypernym synsets (empty if none exist)
+
+**Details:**
+- Returns empty array if synset not found or has no hypernyms
+- Filters out any broken references (IDs that don't resolve)
+- Most common for nouns and verbs
+- Represents "is-a" or "is-a-kind-of" relationships
+
+### hyponyms
+
+Returns more specific synsets (subordinates) in the taxonomy.
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Get synset for "vehicle"
+const vehicleSynset = wordnet.synsets('vehicle', 'n')[0];
+
+if (vehicleSynset) {
+  // Get immediate hyponyms
+  const children = wordnet.hyponyms(vehicleSynset);
+  children.forEach(child => {
+    console.log(`${child.lemmas[0]} is a type of vehicle`);
+    // "car is a type of vehicle"
+    // "truck is a type of vehicle"
+    // "bicycle is a type of vehicle"
+  });
+}
+
+// Can also use synset ID directly
+const children = wordnet.hyponyms('vehicle.n.01');
+```
+
+**Parameters:**
+- `idOrSynset: string | WordNetSynset` - Synset ID or synset object
+
+**Returns:**
+- `WordNetSynset[]` - Array of hyponym synsets (empty if none exist)
+
+**Details:**
+- Returns empty array if synset not found or has no hyponyms
+- Filters out any broken references (IDs that don't resolve)
+- Abstract concepts typically have many hyponyms
+- Specific concepts may have few or no hyponyms
+
+### similarTo
+
+Returns synsets with similar meaning (primarily for adjectives).
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Get synset for "wet"
+const wetSynset = wordnet.synsets('wet', 'a')[0];
+
+if (wetSynset) {
+  // Get similar adjectives
+  const similar = wordnet.similarTo(wetSynset);
+  similar.forEach(s => {
+    console.log(`${s.lemmas[0]}: ${s.gloss}`);
+    // "damp: slightly wet"
+    // "moist: slightly wet"
+  });
+}
+
+// Can also use synset ID directly
+const similar = wordnet.similarTo('wet.a.01');
+```
+
+**Parameters:**
+- `idOrSynset: string | WordNetSynset` - Synset ID or synset object
+
+**Returns:**
+- `WordNetSynset[]` - Array of similar synsets (empty if none exist)
+
+**Details:**
+- Returns empty array if synset not found or has no similar synsets
+- Filters out any broken references
+- Most common for adjectives
+- Represents similarity rather than hierarchy
+- Not necessarily symmetric (A similar to B doesn't mean B similar to A)
+
+### antonyms
+
+Returns synsets with opposite meaning.
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Get synset for "hot"
+const hotSynset = wordnet.synsets('hot', 'a')[0];
+
+if (hotSynset) {
+  // Get antonyms
+  const opposites = wordnet.antonyms(hotSynset);
+  opposites.forEach(opp => {
+    console.log(`Opposite of hot: ${opp.lemmas[0]}`);
+    // "Opposite of hot: cold"
+  });
+}
+
+// Can also use synset ID directly
+const opposites = wordnet.antonyms('hot.a.01');
+```
+
+**Parameters:**
+- `idOrSynset: string | WordNetSynset` - Synset ID or synset object
+
+**Returns:**
+- `WordNetSynset[]` - Array of antonym synsets (empty if none exist)
+
+**Details:**
+- Returns empty array if synset not found or has no antonyms
+- Filters out any broken references
+- Most common for adjectives and some adverbs
+- Less common for nouns and verbs
+- May be symmetric (hot ↔ cold) but not guaranteed
+
+## Traversal Examples
+
+### Building Hypernym Chains
+
+Climb the taxonomy tree from specific to general:
+
+```typescript
+import { loadWordNetMini, type WordNetSynset } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function getHypernymChain(synset: WordNetSynset, maxDepth = 10): string[] {
+  const chain: string[] = [synset.lemmas[0]];
+  let current = synset;
+  
+  for (let depth = 0; depth < maxDepth; depth++) {
+    const parents = wordnet.hypernyms(current);
+    if (parents.length === 0) break;
+    
+    // Follow first hypernym
+    current = parents[0];
+    chain.push(current.lemmas[0]);
+  }
+  
+  return chain;
+}
+
+const dogSynset = wordnet.synsets('dog', 'n')[0];
+if (dogSynset) {
+  const chain = getHypernymChain(dogSynset);
+  console.log(chain.join(' → '));
+  // "dog → canine → carnivore → mammal → animal → organism → entity"
+}
+```
+
+### Finding Common Ancestors
+
+Find the lowest common hypernym between two concepts:
+
+```typescript
+import { loadWordNetMini, type WordNetSynset } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function getAllHypernyms(synset: WordNetSynset): Set<string> {
+  const result = new Set<string>([synset.id]);
+  const queue = [synset];
+  
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const parents = wordnet.hypernyms(current);
+    
+    for (const parent of parents) {
+      if (!result.has(parent.id)) {
+        result.add(parent.id);
+        queue.push(parent);
+      }
+    }
+  }
+  
+  return result;
+}
+
+function findCommonHypernyms(word1: string, word2: string): WordNetSynset[] {
+  const synsets1 = wordnet.synsets(word1, 'n');
+  const synsets2 = wordnet.synsets(word2, 'n');
+  
+  if (synsets1.length === 0 || synsets2.length === 0) return [];
+  
+  const ancestors1 = getAllHypernyms(synsets1[0]);
+  const ancestors2 = getAllHypernyms(synsets2[0]);
+  
+  const common: WordNetSynset[] = [];
+  for (const id of ancestors1) {
+    if (ancestors2.has(id)) {
+      const synset = wordnet.synset(id);
+      if (synset) common.push(synset);
+    }
+  }
+  
+  return common;
+}
+
+const common = findCommonHypernyms('dog', 'cat');
+console.log('Common ancestors:', common.map(s => s.lemmas[0]));
+// ["carnivore", "mammal", "animal", ...]
+```
+
+### Exploring Hyponym Trees
+
+Recursively explore all specific concepts:
+
+```typescript
+import { loadWordNetMini, type WordNetSynset } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function printHyponymTree(
+  synset: WordNetSynset,
+  depth = 0,
+  maxDepth = 3,
+  visited = new Set<string>()
+): void {
+  if (depth > maxDepth || visited.has(synset.id)) return;
+  
+  visited.add(synset.id);
+  const indent = '  '.repeat(depth);
+  console.log(`${indent}${synset.lemmas[0]} - ${synset.gloss.slice(0, 50)}...`);
+  
+  const children = wordnet.hyponyms(synset);
+  for (const child of children) {
+    printHyponymTree(child, depth + 1, maxDepth, visited);
+  }
+}
+
+const vehicleSynset = wordnet.synsets('vehicle', 'n')[0];
+if (vehicleSynset) {
+  console.log('Vehicle taxonomy:');
+  printHyponymTree(vehicleSynset, 0, 2);
+  // vehicle - a conveyance that transports people or objects
+  //   car - a motor vehicle with four wheels...
+  //     sedan - a car with a fixed roof...
+  //     coupe - a car with two doors...
+  //   truck - an automotive vehicle suitable for hauling
+  //   bicycle - a vehicle with two wheels...
+}
+```
+
+### Semantic Similarity
+
+Compare concepts based on shared hypernyms:
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function semanticDistance(word1: string, word2: string): number {
+  const synsets1 = wordnet.synsets(word1, 'n');
+  const synsets2 = wordnet.synsets(word2, 'n');
+  
+  if (synsets1.length === 0 || synsets2.length === 0) return Infinity;
+  
+  const ancestors1 = getAllHypernyms(synsets1[0]);
+  const ancestors2 = getAllHypernyms(synsets2[0]);
+  
+  // Count unique ancestors (not in common)
+  let uniqueCount = 0;
+  for (const id of ancestors1) {
+    if (!ancestors2.has(id)) uniqueCount++;
+  }
+  for (const id of ancestors2) {
+    if (!ancestors1.has(id)) uniqueCount++;
+  }
+  
+  return uniqueCount;
+}
+
+console.log(semanticDistance('dog', 'cat'));      // Small (both carnivores)
+console.log(semanticDistance('dog', 'tree'));     // Large (animal vs plant)
+console.log(semanticDistance('dog', 'wolf'));     // Very small (both canines)
+```
+
+### Finding Antonym Pairs
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function findAntonymPairs(word: string, pos?: 'a' | 'r'): Array<[string, string]> {
+  const synsets = wordnet.synsets(word, pos);
+  const pairs: Array<[string, string]> = [];
+  
+  for (const synset of synsets) {
+    const opposites = wordnet.antonyms(synset);
+    for (const opposite of opposites) {
+      pairs.push([synset.lemmas[0], opposite.lemmas[0]]);
+    }
+  }
+  
+  return pairs;
+}
+
+const pairs = findAntonymPairs('good', 'a');
+pairs.forEach(([word, antonym]) => {
+  console.log(`${word} ↔ ${antonym}`);
+});
+// good ↔ bad
+// good ↔ evil
+```
+
+## Relationship Properties
+
+### Stored as ID Arrays
+
+Relationships are stored as arrays of synset IDs in the `WordNetSynset` type:
+
+```typescript
+type WordNetSynset = {
+  // ...
+  hypernyms: string[];   // e.g., ["canine.n.01", "domestic_animal.n.01"]
+  hyponyms: string[];    // e.g., ["puppy.n.01", "toy_dog.n.01"]
+  similarTo: string[];   // e.g., ["damp.a.01", "moist.a.01"]
+  antonyms: string[];    // e.g., ["cold.a.01"]
+};
+```
+
+### Method Implementation
+
+All relation methods follow the same pattern:
+
+```typescript
+// Example: hypernyms method
+hypernyms(idOrSynset: string | WordNetSynset): WordNetSynset[] {
+  // 1. Resolve to synset object
+  const node = typeof idOrSynset === "string" 
+    ? this.synset(idOrSynset) 
+    : idOrSynset;
+  
+  // 2. Return empty if not found
+  if (!node) return [];
+  
+  // 3. Map IDs to synsets, filtering broken references
+  return node.hypernyms
+    .map((id) => this.byId.get(id))
+    .filter((row): row is WordNetSynset => !!row);
+}
+```
+
+## Related
+
+- [Synsets](/api/wordnet/synsets) - Query and access synsets
+- [Loading](/api/wordnet/loading) - Load WordNet databases
+- [Morphy](/api/wordnet/morphy) - Morphological analysis

@@ -1,0 +1,212 @@
+---
+title: CorpusReader
+description: API reference for the CorpusReader class and its methods for accessing corpus data
+---
+
+## CorpusReader
+
+The `CorpusReader` class provides a unified interface for accessing corpus files and their contents. It supports filtering by file IDs and categories, and offers multiple ways to extract text data.
+
+### Constructor
+
+```typescript
+new CorpusReader(files: CorpusFile[])
+```
+
+Creates a new corpus reader from an array of corpus files.
+
+**Parameters:**
+- `files`: Array of `CorpusFile` objects
+
+**Types:**
+```typescript
+type CorpusFile = {
+  id: string;
+  text: string;
+  categories: string[];
+};
+
+type ReadOptions = {
+  fileIds?: string[];
+  categories?: string[];
+};
+```
+
+### Methods
+
+#### fileIds()
+
+Returns an array of file IDs in the corpus, optionally filtered by file IDs or categories.
+
+```typescript
+fileIds(options?: ReadOptions): string[]
+```
+
+**Parameters:**
+- `options`: Optional filtering options
+  - `fileIds`: Array of file IDs to include
+  - `categories`: Array of categories to filter by
+
+**Returns:** Array of file ID strings
+
+**Example:**
+```typescript
+import { loadBundledMiniCorpus } from "bun_nltk/corpus";
+
+const corpus = loadBundledMiniCorpus();
+
+// Get all file IDs
+const allIds = corpus.fileIds();
+console.log(allIds);
+// => ["brown_news_001.txt", "brown_romance_001.txt", ...]
+
+// Get file IDs by category
+const newsIds = corpus.fileIds({ categories: ["news"] });
+console.log(newsIds);
+// => ["brown_news_001.txt", ...]
+```
+
+#### raw()
+
+Returns the raw text content from selected files, joined with newlines.
+
+```typescript
+raw(options?: ReadOptions): string
+```
+
+**Parameters:**
+- `options`: Optional filtering options (same as `fileIds()`)
+
+**Returns:** Concatenated text string
+
+**Example:**
+```typescript
+const corpus = loadBundledMiniCorpus();
+
+// Get all raw text
+const allText = corpus.raw();
+
+// Get raw text from specific category
+const newsText = corpus.raw({ categories: ["news"] });
+```
+
+#### words()
+
+Extracts and tokenizes words from the corpus text. Words are converted to lowercase.
+
+```typescript
+words(options?: ReadOptions): string[]
+```
+
+**Parameters:**
+- `options`: Optional filtering options (same as `fileIds()`)
+
+**Returns:** Array of lowercase word tokens
+
+**Example:**
+```typescript
+const corpus = loadBundledMiniCorpus();
+
+// Get all words
+const allWords = corpus.words();
+console.log(allWords.slice(0, 5));
+// => ["the", "fulton", "county", "grand", "jury"]
+
+// Get words from specific files
+const fileWords = corpus.words({ fileIds: ["brown_news_001.txt"] });
+```
+
+#### sents()
+
+Extracts sentences from the corpus using Punkt sentence tokenizer. Empty sentences are filtered out.
+
+```typescript
+sents(options?: ReadOptions): string[]
+```
+
+**Parameters:**
+- `options`: Optional filtering options (same as `fileIds()`)
+
+**Returns:** Array of sentence strings (trimmed)
+
+**Example:**
+```typescript
+const corpus = loadBundledMiniCorpus();
+
+// Get all sentences
+const sentences = corpus.sents();
+console.log(sentences[0]);
+// => "The Fulton County Grand Jury said Friday an investigation..."
+
+// Get sentences by category
+const newsSents = corpus.sents({ categories: ["news"] });
+```
+
+#### paras()
+
+Extracts paragraphs from the corpus. Paragraphs are identified by double newlines (`\n\n` or `\r\n\r\n`).
+
+```typescript
+paras(options?: ReadOptions): string[]
+```
+
+**Parameters:**
+- `options`: Optional filtering options (same as `fileIds()`)
+
+**Returns:** Array of paragraph strings (trimmed, non-empty)
+
+**Example:**
+```typescript
+const corpus = loadBundledMiniCorpus();
+
+// Get all paragraphs
+const paragraphs = corpus.paras();
+
+// Get paragraphs from specific category
+const romanceParas = corpus.paras({ categories: ["romance"] });
+```
+
+#### categories()
+
+Returns all unique categories present in the corpus, sorted alphabetically.
+
+```typescript
+categories(): string[]
+```
+
+**Returns:** Array of category strings (lowercase, sorted)
+
+**Example:**
+```typescript
+const corpus = loadBundledMiniCorpus();
+
+const cats = corpus.categories();
+console.log(cats);
+// => ["news", "romance", ...]
+```
+
+## Filtering Behavior
+
+All methods that accept `ReadOptions` support flexible filtering:
+
+- **File IDs**: Case-insensitive matching
+- **Categories**: Case-insensitive matching; files must have at least one matching category
+- **Multiple filters**: When both `fileIds` and `categories` are provided, files must match both criteria
+- **Results**: Always sorted alphabetically by file ID
+
+**Example:**
+```typescript
+const corpus = loadBundledMiniCorpus();
+
+// Combine file IDs and categories
+const filtered = corpus.words({
+  fileIds: ["brown_news_001.txt", "brown_romance_001.txt"],
+  categories: ["news"]
+});
+// Only returns words from brown_news_001.txt
+```
+
+## See Also
+
+- [Bundled Corpora](/api/corpus/bundled-corpora) - Loading corpus bundles
+- [Registry](/api/corpus/registry) - Downloading corpora from remote registries

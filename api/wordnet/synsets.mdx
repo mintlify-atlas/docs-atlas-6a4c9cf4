@@ -1,0 +1,269 @@
+---
+title: Synsets
+description: Query and access WordNet synsets (synonym sets)
+---
+
+## Overview
+
+Synsets are the core building blocks of WordNet - sets of cognitive synonyms that represent a single concept. Each synset contains lemmas (word forms), definitions (glosses), examples, and relationships to other synsets.
+
+## WordNetSynset Type
+
+```typescript
+type WordNetSynset = {
+  id: string;              // Unique synset identifier (e.g., "dog.n.01")
+  pos: WordNetPos;         // Part of speech: "n" | "v" | "a" | "r"
+  lemmas: string[];        // Word forms in this synset (normalized)
+  gloss: string;           // Definition text
+  examples: string[];      // Usage examples
+  hypernyms: string[];     // More general synset IDs
+  hyponyms: string[];      // More specific synset IDs
+  similarTo: string[];     // Similar synset IDs (mainly for adjectives)
+  antonyms: string[];      // Opposite synset IDs
+};
+
+type WordNetPos = "n" | "v" | "a" | "r";
+// n = noun, v = verb, a = adjective, r = adverb
+```
+
+## Methods
+
+### synset
+
+Looks up a synset by its unique identifier.
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+const synset = wordnet.synset('dog.n.01');
+if (synset) {
+  console.log(synset.gloss);       // "a member of the genus Canis..."
+  console.log(synset.lemmas);      // ["dog", "domestic_dog", "canis_familiaris"]
+  console.log(synset.pos);         // "n"
+}
+
+// Returns null if not found
+const missing = wordnet.synset('nonexistent.n.99');
+console.log(missing);              // null
+```
+
+**Parameters:**
+- `id: string` - Synset identifier in format `word.pos.number`
+
+**Returns:**
+- `WordNetSynset | null` - Synset object if found, null otherwise
+
+**Details:**
+- Performs O(1) lookup using internal Map
+- Case-sensitive ID matching
+- Does not normalize or validate the ID format
+
+### synsets
+
+Finds all synsets containing a given word, optionally filtered by part of speech.
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Get all synsets for "run" (noun, verb, etc.)
+const allRun = wordnet.synsets('run');
+console.log(allRun.length);        // Multiple senses across POS
+
+// Get only verb synsets for "run"
+const runVerbs = wordnet.synsets('run', 'v');
+console.log(runVerbs[0]?.gloss);   // "move fast by using one's feet..."
+
+// Get only noun synsets
+const runNouns = wordnet.synsets('run', 'n');
+console.log(runNouns[0]?.gloss);   // "a score in baseball..."
+
+// Handles inflected forms via morphy
+const running = wordnet.synsets('running', 'v');
+console.log(running.length > 0);   // true (finds "run" base form)
+```
+
+**Parameters:**
+- `word: string` - Word to look up (can be inflected)
+- `pos?: WordNetPos` - Optional part of speech filter: "n", "v", "a", or "r"
+
+**Returns:**
+- `WordNetSynset[]` - Array of matching synsets (empty if none found)
+
+**Details:**
+- Automatically applies morphological analysis via `morphy()` (see [Morphy](/api/wordnet/morphy))
+- Normalizes word to lowercase and replaces spaces with underscores
+- Without POS filter, returns synsets across all parts of speech
+- Returns empty array if word not found or has no synsets for specified POS
+- Performs O(1) lemma lookup after normalization
+
+### lemmas
+
+Returns all lemmas (word forms) in the database, optionally filtered by part of speech.
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Get all lemmas (returns thousands of words)
+const allLemmas = wordnet.lemmas();
+console.log(allLemmas.length);     // e.g., 10000+
+
+// Get only noun lemmas
+const nouns = wordnet.lemmas('n');
+console.log(nouns.slice(0, 3));    // ["aardvark", "abacus", "abandon"]
+
+// Get only verb lemmas
+const verbs = wordnet.lemmas('v');
+console.log(verbs.slice(0, 3));    // ["abandon", "abbreviate", "abdicate"]
+
+// Get only adjective lemmas
+const adjectives = wordnet.lemmas('a');
+
+// Get only adverb lemmas
+const adverbs = wordnet.lemmas('r');
+```
+
+**Parameters:**
+- `pos?: WordNetPos` - Optional part of speech filter: "n", "v", "a", or "r"
+
+**Returns:**
+- `string[]` - Alphabetically sorted array of lemmas
+
+**Details:**
+- Returns normalized forms (lowercase, underscores for spaces)
+- Without POS filter, includes all lemmas across all parts of speech
+- Results are automatically sorted alphabetically
+- A lemma may appear once but have multiple synsets
+- Performance: O(n) where n is the number of unique lemmas
+
+## WordNet Class
+
+The `WordNet` class maintains two internal indexes for efficient lookups:
+
+```typescript
+export class WordNet {
+  private readonly byId = new Map<string, WordNetSynset>();
+  private readonly lemmaIndex = new Map<string, WordNetSynset[]>();
+
+  // ... methods
+}
+```
+
+**Internal Structure:**
+- `byId` - Maps synset IDs to synset objects (for `synset()` method)
+- `lemmaIndex` - Maps normalized lemmas to arrays of synsets (for `synsets()` method)
+
+**Normalization:**
+All lemmas are normalized during construction:
+- Converted to lowercase
+- Spaces replaced with underscores
+- Example: "New York" → "new_york"
+
+## Usage Examples
+
+### Exploring Word Senses
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Find all senses of "bank"
+const senses = wordnet.synsets('bank', 'n');
+
+senses.forEach((synset, index) => {
+  console.log(`Sense ${index + 1}: ${synset.gloss}`);
+  console.log(`  Lemmas: ${synset.lemmas.join(', ')}`);
+  if (synset.examples.length > 0) {
+    console.log(`  Example: ${synset.examples[0]}`);
+  }
+});
+
+// Output:
+// Sense 1: a financial institution...
+//   Lemmas: bank, banking_company
+// Sense 2: sloping land beside a body of water
+//   Lemmas: bank, riverbank
+// ...
+```
+
+### Checking Word Existence
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function isInWordNet(word: string, pos?: WordNetPos): boolean {
+  return wordnet.synsets(word, pos).length > 0;
+}
+
+console.log(isInWordNet('dog'));           // true
+console.log(isInWordNet('xyzabc'));        // false
+console.log(isInWordNet('run', 'v'));      // true
+console.log(isInWordNet('run', 'a'));      // false (run is not an adjective)
+```
+
+### Iterating Through Vocabulary
+
+```typescript
+import { loadWordNetMini } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+// Count synsets per POS
+const stats = {
+  nouns: wordnet.lemmas('n').length,
+  verbs: wordnet.lemmas('v').length,
+  adjectives: wordnet.lemmas('a').length,
+  adverbs: wordnet.lemmas('r').length,
+};
+
+console.log('WordNet Statistics:', stats);
+
+// Find polysemous words (words with multiple senses)
+const polysemous = wordnet.lemmas('n')
+  .filter(lemma => wordnet.synsets(lemma, 'n').length > 5)
+  .slice(0, 10);
+
+console.log('Highly polysemous nouns:', polysemous);
+```
+
+### Working with Synset Objects
+
+```typescript
+import { loadWordNetMini, type WordNetSynset } from 'bun_nltk';
+
+const wordnet = loadWordNetMini();
+
+function describeSynset(synset: WordNetSynset): string {
+  const parts = [
+    `ID: ${synset.id}`,
+    `POS: ${synset.pos}`,
+    `Lemmas: ${synset.lemmas.join(', ')}`,
+    `Definition: ${synset.gloss}`,
+  ];
+  
+  if (synset.examples.length > 0) {
+    parts.push(`Examples: ${synset.examples.join('; ')}`);
+  }
+  
+  return parts.join('\n');
+}
+
+const dogSynset = wordnet.synsets('dog', 'n')[0];
+if (dogSynset) {
+  console.log(describeSynset(dogSynset));
+}
+```
+
+## Related
+
+- [Loading](/api/wordnet/loading) - Load WordNet databases
+- [Relations](/api/wordnet/relations) - Navigate semantic relationships
+- [Morphy](/api/wordnet/morphy) - Morphological analysis and lemmatization

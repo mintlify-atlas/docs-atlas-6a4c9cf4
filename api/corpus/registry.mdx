@@ -1,0 +1,330 @@
+---
+title: Corpus Registry
+description: API reference for downloading and managing corpus data from remote registries
+---
+
+## Overview
+
+The corpus registry system allows you to download corpus data from remote sources (URLs) and automatically create local corpus bundles. This is useful for:
+
+- Distributing corpora without bundling them in your package
+- Fetching corpora on-demand from CDNs or repositories
+- Verifying corpus integrity with SHA-256 checksums
+
+## loadCorpusRegistryManifest()
+
+Loads a corpus registry manifest from a JSON file. The manifest describes which corpora to download and their metadata.
+
+```typescript
+function loadCorpusRegistryManifest(manifestPath: string): CorpusRegistryManifest
+```
+
+**Parameters:**
+- `manifestPath`: Path to the registry manifest JSON file
+
+**Returns:** Parsed `CorpusRegistryManifest` object
+
+**Throws:** Error if the manifest is invalid or entries array is missing
+
+### Example
+
+```typescript
+import { loadCorpusRegistryManifest } from "bun_nltk/corpus";
+
+const manifest = loadCorpusRegistryManifest("./corpus-registry.json");
+
+console.log(`Registry has ${manifest.entries.length} entries`);
+for (const entry of manifest.entries) {
+  console.log(`- ${entry.id}: ${entry.url}`);
+}
+```
+
+## downloadCorpusRegistry()
+
+Downloads all corpus files specified in a registry manifest and creates a local corpus bundle.
+
+```typescript
+async function downloadCorpusRegistry(
+  manifestOrPath: CorpusRegistryManifest | string,
+  outDir: string,
+  options?: {
+    fetchBytes?: (url: string) => Promise<Uint8Array>;
+    overwrite?: boolean;
+  }
+): Promise<string>
+```
+
+**Parameters:**
+- `manifestOrPath`: Either a loaded manifest object or a path to a manifest file
+- `outDir`: Directory where corpus files and `index.json` will be saved
+- `options` (optional):
+  - `fetchBytes`: Custom function to fetch file bytes (defaults to `fetch()`)
+  - `overwrite`: Whether to overwrite existing files (currently not enforced)
+
+**Returns:** Promise that resolves to the path of the generated `index.json` file
+
+**Throws:**
+- Error if download fails
+- Error if SHA-256 checksum doesn't match (when specified in manifest)
+- Error if a downloaded file is empty
+
+### Example: Basic Download
+
+```typescript
+import { downloadCorpusRegistry, loadCorpusBundleFromIndex } from "bun_nltk/corpus";
+
+// Download corpus from registry
+const indexPath = await downloadCorpusRegistry(
+  "./corpus-registry.json",
+  "./downloaded-corpus"
+);
+
+console.log(`Corpus downloaded, index at: ${indexPath}`);
+
+// Load the downloaded corpus
+const corpus = loadCorpusBundleFromIndex(indexPath);
+const words = corpus.words();
+console.log(`Loaded ${words.length} words`);
+```
+
+### Example: With Custom Fetch
+
+```typescript
+import { downloadCorpusRegistry } from "bun_nltk/corpus";
+
+// Custom fetch function with authentication
+const customFetch = async (url: string): Promise<Uint8Array> => {
+  const response = await fetch(url, {
+    headers: {
+      "Authorization": "Bearer YOUR_TOKEN"
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  }
+  
+  return new Uint8Array(await response.arrayBuffer());
+};
+
+// Download with custom fetch
+const indexPath = await downloadCorpusRegistry(
+  "./private-registry.json",
+  "./corpus",
+  { fetchBytes: customFetch }
+);
+```
+
+### Example: Pass Loaded Manifest
+
+```typescript
+import { 
+  loadCorpusRegistryManifest, 
+  downloadCorpusRegistry 
+} from "bun_nltk/corpus";
+
+// Load manifest first
+const manifest = loadCorpusRegistryManifest("./registry.json");
+
+// Filter entries if needed
+const filteredManifest = {
+  ...manifest,
+  entries: manifest.entries.filter(e => e.categories?.includes("news"))
+};
+
+// Download only filtered entries
+const indexPath = await downloadCorpusRegistry(
+  filteredManifest,
+  "./news-corpus"
+);
+```
+
+## Registry Manifest Format
+
+### Type Definitions
+
+```typescript
+type CorpusRegistryManifest = {
+  version: number;
+  entries: CorpusRegistryEntry[];
+};
+
+type CorpusRegistryEntry = {
+  id: string;           // Unique identifier for the corpus file
+  url: string;          // Download URL
+  categories?: string[]; // Optional categories
+  sha256?: string;      // Optional SHA-256 checksum (lowercase hex)
+  fileName?: string;    // Optional filename (defaults to "{id}.txt")
+};
+```
+
+### Example Manifest
+
+```json
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "brown_news",
+      "url": "https://example.com/corpora/brown_news.txt",
+      "categories": ["news"],
+      "sha256": "abc123...",
+      "fileName": "brown_news.txt"
+    },
+    {
+      "id": "brown_romance",
+      "url": "https://example.com/corpora/brown_romance.txt",
+      "categories": ["romance"],
+      "sha256": "def456..."
+    }
+  ]
+}
+```
+
+## Download Process
+
+When `downloadCorpusRegistry()` executes:
+
+1. **Create output directory** (if it doesn't exist)
+2. **For each entry in the manifest:**
+   - Download file from `url`
+   - Validate SHA-256 checksum (if provided)
+   - Sanitize filename (remove unsafe characters)
+   - Save file to `outDir`
+3. **Generate index.json** with file mappings
+4. **Return path** to `index.json`
+
+### Generated Output Structure
+
+```
+outDir/
+├── index.json
+├── brown_news.txt
+└── brown_romance.txt
+```
+
+### Generated index.json
+
+```json
+{
+  "version": 1,
+  "files": [
+    {
+      "id": "brown_news",
+      "path": "brown_news.txt",
+      "categories": ["news"]
+    },
+    {
+      "id": "brown_romance",
+      "path": "brown_romance.txt",
+      "categories": ["romance"]
+    }
+  ]
+}
+```
+
+## Filename Sanitization
+
+Filenames are automatically sanitized to be filesystem-safe:
+- Only alphanumeric characters, dots, hyphens, and underscores are preserved
+- All other characters are replaced with underscores
+
+**Examples:**
+- `my corpus.txt` → `my_corpus.txt`
+- `data@2024.txt` → `data_2024.txt`
+- `file/name.txt` → `file_name.txt`
+
+## SHA-256 Verification
+
+When a `sha256` field is provided in a registry entry:
+
+- The downloaded file's checksum is computed
+- Comparison is case-insensitive
+- Mismatch throws an error and stops the download process
+
+**Example with verification:**
+
+```typescript
+import { downloadCorpusRegistry } from "bun_nltk/corpus";
+
+try {
+  await downloadCorpusRegistry("./registry.json", "./corpus");
+  console.log("All checksums verified successfully");
+} catch (error) {
+  console.error("Download failed:", error.message);
+  // Example: "sha256 mismatch for brown_news: expected=abc123 actual=xyz789"
+}
+```
+
+## Error Handling
+
+Common errors:
+
+- **Invalid manifest**: Missing or malformed `entries` array
+- **Download failure**: Network error or HTTP error status
+- **Empty file**: Downloaded content is empty
+- **Checksum mismatch**: SHA-256 doesn't match expected value
+
+**Example:**
+
+```typescript
+import { downloadCorpusRegistry } from "bun_nltk/corpus";
+
+try {
+  const indexPath = await downloadCorpusRegistry(
+    "./registry.json",
+    "./corpus"
+  );
+  console.log(`Success: ${indexPath}`);
+} catch (error) {
+  if (error.message.includes("sha256 mismatch")) {
+    console.error("Checksum verification failed");
+  } else if (error.message.includes("failed to download")) {
+    console.error("Network error during download");
+  } else {
+    console.error("Unexpected error:", error);
+  }
+}
+```
+
+## Complete Workflow Example
+
+```typescript
+import { 
+  downloadCorpusRegistry, 
+  loadCorpusBundleFromIndex 
+} from "bun_nltk/corpus";
+import { existsSync } from "fs";
+
+const CORPUS_DIR = "./my-corpus";
+const REGISTRY_URL = "https://example.com/corpus-registry.json";
+
+// Download registry manifest
+const registryResponse = await fetch(REGISTRY_URL);
+const registryPath = "./temp-registry.json";
+await Bun.write(registryPath, await registryResponse.text());
+
+// Download corpus if not already present
+let indexPath: string;
+
+if (!existsSync(CORPUS_DIR)) {
+  console.log("Downloading corpus...");
+  indexPath = await downloadCorpusRegistry(registryPath, CORPUS_DIR);
+  console.log("Download complete!");
+} else {
+  indexPath = `${CORPUS_DIR}/index.json`;
+  console.log("Using existing corpus");
+}
+
+// Load and use corpus
+const corpus = loadCorpusBundleFromIndex(indexPath);
+const sentences = corpus.sents();
+
+console.log(`Loaded ${sentences.length} sentences`);
+console.log("Categories:", corpus.categories());
+```
+
+## See Also
+
+- [CorpusReader](/api/corpus/corpus-reader) - CorpusReader class methods
+- [Bundled Corpora](/api/corpus/bundled-corpora) - Load local corpus bundles

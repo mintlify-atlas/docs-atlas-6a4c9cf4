@@ -1,0 +1,427 @@
+---
+title: "Corpus Readers"
+description: "Access and manage text corpora with the CorpusReader API and registry system"
+---
+
+## Overview
+
+bun_nltk provides corpus readers for loading and processing text collections. The system supports bundled corpora, custom collections, and a registry for downloading remote corpora.
+
+## Quick Start
+
+### Load Bundled Mini Corpus
+
+```typescript
+import { loadBundledMiniCorpus } from "bun_nltk";
+
+const corpus = loadBundledMiniCorpus();
+
+console.log(corpus.fileIds());
+console.log(corpus.categories());
+```
+
+## Accessing Corpus Data
+
+### File IDs
+
+```typescript
+const fileIds = corpus.fileIds();
+console.log(fileIds); // ["doc1.txt", "doc2.txt", ...]
+
+// Filter by category
+const newsFiles = corpus.fileIds({ categories: ["news"] });
+```
+
+### Raw Text
+
+```typescript
+const text = corpus.raw();
+console.log(text); // All corpus text concatenated
+
+// Get specific files
+const fileText = corpus.raw({ fileIds: ["doc1.txt"] });
+
+// Get by category
+const newsText = corpus.raw({ categories: ["news"] });
+```
+
+### Words
+
+```typescript
+const words = corpus.words();
+console.log(words); // ["the", "quick", "brown", ...]
+
+// All lowercase, tokenized words
+const newsWords = corpus.words({ categories: ["news"] });
+```
+
+### Sentences
+
+```typescript
+const sentences = corpus.sents();
+for (const sent of sentences) {
+  console.log(sent);
+}
+
+// Filter by file or category
+const newsSents = corpus.sents({ categories: ["news"] });
+```
+
+### Paragraphs
+
+```typescript
+const paragraphs = corpus.paras();
+for (const para of paragraphs) {
+  console.log(para);
+  console.log("---");
+}
+```
+
+### Categories
+
+```typescript
+const categories = corpus.categories();
+console.log(categories); // ["news", "reviews", "fiction"]
+```
+
+## Creating Custom Corpora
+
+### From In-Memory Data
+
+```typescript
+import { CorpusReader } from "bun_nltk";
+
+const files = [
+  {
+    id: "doc1.txt",
+    text: "This is the first document.",
+    categories: ["sample", "short"]
+  },
+  {
+    id: "doc2.txt",
+    text: "This is another document with more content.",
+    categories: ["sample"]
+  }
+];
+
+const corpus = new CorpusReader(files);
+const words = corpus.words();
+```
+
+### From Index File
+
+```typescript
+import { loadCorpusBundleFromIndex } from "bun_nltk";
+
+const corpus = loadCorpusBundleFromIndex("/path/to/corpus/index.json");
+```
+
+**Index Format:**
+```json
+{
+  "version": 1,
+  "files": [
+    {
+      "id": "doc1.txt",
+      "path": "texts/doc1.txt",
+      "categories": ["news", "sports"]
+    },
+    {
+      "id": "doc2.txt",
+      "path": "texts/doc2.txt",
+      "categories": ["reviews"]
+    }
+  ]
+}
+```
+
+## Corpus Registry System
+
+### Registry Manifest
+
+Define downloadable corpora:
+
+```typescript
+export type CorpusRegistryEntry = {
+  id: string;
+  url: string;
+  categories?: string[];
+  sha256?: string;      // Optional checksum
+  fileName?: string;    // Optional output filename
+};
+```
+
+**Example manifest.json:**
+```json
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "news_001",
+      "url": "https://example.com/corpus/news_001.txt",
+      "categories": ["news", "politics"],
+      "sha256": "abc123...",
+      "fileName": "news_001.txt"
+    },
+    {
+      "id": "review_001",
+      "url": "https://example.com/corpus/review_001.txt",
+      "categories": ["reviews"],
+      "sha256": "def456..."
+    }
+  ]
+}
+```
+
+### Download Corpus from Registry
+
+```typescript
+import { downloadCorpusRegistry } from "bun_nltk";
+
+const indexPath = await downloadCorpusRegistry(
+  "/path/to/manifest.json",
+  "/output/directory"
+);
+
+console.log(`Corpus downloaded. Index at: ${indexPath}`);
+
+// Load the downloaded corpus
+const corpus = loadCorpusBundleFromIndex(indexPath);
+```
+
+### Custom Fetch Function
+
+```typescript
+const indexPath = await downloadCorpusRegistry(
+  manifest,
+  outDir,
+  {
+    fetchBytes: async (url) => {
+      // Custom download logic
+      const response = await fetch(url, { 
+        headers: { Authorization: "Bearer token" }
+      });
+      return new Uint8Array(await response.arrayBuffer());
+    },
+    overwrite: true
+  }
+);
+```
+
+### Load Registry Manifest
+
+```typescript
+import { loadCorpusRegistryManifest } from "bun_nltk";
+
+const manifest = loadCorpusRegistryManifest("/path/to/manifest.json");
+
+for (const entry of manifest.entries) {
+  console.log(`${entry.id}: ${entry.url}`);
+}
+```
+
+## Filtering Options
+
+All corpus methods accept filtering options:
+
+```typescript
+type ReadOptions = {
+  fileIds?: string[];      // Specific file IDs
+  categories?: string[];   // Filter by category
+};
+```
+
+### Examples
+
+```typescript
+// Single file
+const text = corpus.raw({ fileIds: ["doc1.txt"] });
+
+// Multiple files
+const words = corpus.words({ fileIds: ["doc1.txt", "doc2.txt"] });
+
+// Single category
+const newsSents = corpus.sents({ categories: ["news"] });
+
+// Multiple categories
+const mixed = corpus.words({ categories: ["news", "reviews"] });
+
+// Combine filters
+const filtered = corpus.raw({
+  fileIds: ["doc1.txt", "doc2.txt"],
+  categories: ["news"]
+});
+```
+
+## Practical Examples
+
+### Word Frequency Analysis
+
+```typescript
+import { loadBundledMiniCorpus } from "bun_nltk";
+
+const corpus = loadBundledMiniCorpus();
+const words = corpus.words();
+
+const freq = new Map<string, number>();
+for (const word of words) {
+  freq.set(word, (freq.get(word) ?? 0) + 1);
+}
+
+const topWords = [...freq.entries()]
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 10);
+
+console.log(topWords);
+```
+
+### Category Comparison
+
+```typescript
+function compareCategories(corpus: CorpusReader, cat1: string, cat2: string) {
+  const words1 = new Set(corpus.words({ categories: [cat1] }));
+  const words2 = new Set(corpus.words({ categories: [cat2] }));
+  
+  const unique1 = [...words1].filter(w => !words2.has(w));
+  const unique2 = [...words2].filter(w => !words1.has(w));
+  const shared = [...words1].filter(w => words2.has(w));
+  
+  return { unique1, unique2, shared };
+}
+
+const comparison = compareCategories(corpus, "news", "reviews");
+console.log(`Shared vocabulary: ${comparison.shared.length}`);
+```
+
+### Build Training Data
+
+```typescript
+import { trainNaiveBayesTextClassifier } from "bun_nltk";
+
+function corpusToTrainingData(corpus: CorpusReader) {
+  const categories = corpus.categories();
+  const examples = [];
+  
+  for (const category of categories) {
+    const fileIds = corpus.fileIds({ categories: [category] });
+    
+    for (const id of fileIds) {
+      const text = corpus.raw({ fileIds: [id] });
+      examples.push({ label: category, text });
+    }
+  }
+  
+  return examples;
+}
+
+const corpus = loadBundledMiniCorpus();
+const trainingData = corpusToTrainingData(corpus);
+const classifier = trainNaiveBayesTextClassifier(trainingData);
+```
+
+### Extract Sentences by Length
+
+```typescript
+function getSentencesByLength(
+  corpus: CorpusReader,
+  minWords: number,
+  maxWords: number
+): string[] {
+  const sentences = corpus.sents();
+  
+  return sentences.filter(sent => {
+    const wordCount = sent.split(/\s+/).length;
+    return wordCount >= minWords && wordCount <= maxWords;
+  });
+}
+
+const mediumSents = getSentencesByLength(corpus, 10, 20);
+```
+
+### Create Vocabulary List
+
+```typescript
+function buildVocabulary(corpus: CorpusReader, minFreq = 2): string[] {
+  const words = corpus.words();
+  const freq = new Map<string, number>();
+  
+  for (const word of words) {
+    freq.set(word, (freq.get(word) ?? 0) + 1);
+  }
+  
+  return [...freq.entries()]
+    .filter(([_, count]) => count >= minFreq)
+    .map(([word, _]) => word)
+    .sort();
+}
+
+const vocab = buildVocabulary(corpus, 5);
+console.log(`Vocabulary size: ${vocab.length}`);
+```
+
+## Performance Notes
+
+- Bundled corpus is cached (singleton pattern)
+- File reading is lazy (only loads when accessed)
+- Tokenization uses optimized Punkt for sentences
+- Word tokenization uses `wordTokenizeSubset`
+
+```typescript
+// First call loads from disk
+const corpus1 = loadBundledMiniCorpus();
+
+// Second call returns cached instance
+const corpus2 = loadBundledMiniCorpus();
+
+console.log(corpus1 === corpus2); // true
+```
+
+## Type Definitions
+
+```typescript
+export type CorpusFile = {
+  id: string;
+  text: string;
+  categories: string[];
+};
+
+export type CorpusMiniIndex = {
+  version: number;
+  files: Array<{
+    id: string;
+    path: string;
+    categories?: string[];
+  }>;
+};
+
+export type CorpusRegistryEntry = {
+  id: string;
+  url: string;
+  categories?: string[];
+  sha256?: string;
+  fileName?: string;
+};
+
+export type CorpusRegistryManifest = {
+  version: number;
+  entries: CorpusRegistryEntry[];
+};
+```
+
+## API Reference
+
+### Loading Functions
+
+- **`loadBundledMiniCorpus(rootPath?)`** - Load bundled corpus
+- **`loadCorpusBundleFromIndex(indexPath)`** - Load from index file
+- **`loadCorpusRegistryManifest(manifestPath)`** - Load registry manifest
+- **`downloadCorpusRegistry(manifest, outDir, options?)`** - Download corpus
+
+### CorpusReader Methods
+
+- **`fileIds(options?)`** - Get file IDs
+- **`raw(options?)`** - Get raw text
+- **`words(options?)`** - Get tokenized words
+- **`sents(options?)`** - Get sentences
+- **`paras(options?)`** - Get paragraphs
+- **`categories()`** - Get all categories

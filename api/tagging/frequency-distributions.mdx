@@ -1,0 +1,399 @@
+---
+title: 'Frequency Distributions'
+description: 'Streaming frequency distribution analysis for tokens and n-grams'
+---
+
+## NativeFreqDistStream
+
+A streaming frequency distribution collector that efficiently tracks token, bigram, and conditional frequencies without storing all text in memory.
+
+```typescript
+class NativeFreqDistStream {
+  constructor()
+  update(text: string): void
+  flush(): void
+  tokenUniqueCount(): number
+  bigramUniqueCount(): number
+  conditionalUniqueCount(): number
+  tokenFreqDistHash(): Map<bigint, number>
+  bigramFreqDistHash(): StreamBigramFreq[]
+  conditionalFreqDistHash(): StreamConditionalFreq[]
+  toJson(): string
+  dispose(): void
+}
+```
+
+### Constructor
+
+Creates a new frequency distribution stream.
+
+```typescript
+const stream = new NativeFreqDistStream();
+```
+
+### Methods
+
+#### update
+
+Processes text and updates frequency distributions.
+
+```typescript
+update(text: string): void
+```
+
+<ParamField path="text" type="string" required>
+  Text to process and add to the distributions.
+</ParamField>
+
+**Example:**
+
+```typescript
+const stream = new NativeFreqDistStream();
+stream.update("The quick brown fox");
+stream.update("The lazy dog");
+```
+
+#### flush
+
+Flushes internal buffers. Call this after the last `update()` before reading results.
+
+```typescript
+flush(): void
+```
+
+**Example:**
+
+```typescript
+stream.update("Final text");
+stream.flush();
+const counts = stream.tokenUniqueCount();
+```
+
+#### tokenUniqueCount
+
+Returns the number of unique tokens observed.
+
+```typescript
+tokenUniqueCount(): number
+```
+
+**Returns:** Count of unique tokens.
+
+**Example:**
+
+```typescript
+const uniqueTokens = stream.tokenUniqueCount();
+console.log(`Found ${uniqueTokens} unique tokens`);
+```
+
+#### bigramUniqueCount
+
+Returns the number of unique bigrams (token pairs) observed.
+
+```typescript
+bigramUniqueCount(): number
+```
+
+**Returns:** Count of unique bigrams.
+
+#### conditionalUniqueCount
+
+Returns the number of unique conditional frequencies (POS tag + token combinations).
+
+```typescript
+conditionalUniqueCount(): number
+```
+
+**Returns:** Count of unique conditional pairs.
+
+#### tokenFreqDistHash
+
+Returns token frequencies as a map of token hashes to counts.
+
+```typescript
+tokenFreqDistHash(): Map<bigint, number>
+```
+
+**Returns:** Map where keys are token hashes (bigint) and values are occurrence counts.
+
+**Example:**
+
+```typescript
+const freqs = stream.tokenFreqDistHash();
+for (const [hash, count] of freqs) {
+  console.log(`Hash ${hash}: ${count} occurrences`);
+}
+```
+
+#### bigramFreqDistHash
+
+Returns bigram frequencies.
+
+```typescript
+bigramFreqDistHash(): StreamBigramFreq[]
+```
+
+**Returns:** Array of bigram frequency objects.
+
+<ResponseField name="StreamBigramFreq[]" type="array">
+  <Expandable title="StreamBigramFreq properties">
+    <ResponseField name="leftHash" type="bigint">
+      Hash of the first token.
+    </ResponseField>
+    
+    <ResponseField name="rightHash" type="bigint">
+      Hash of the second token.
+    </ResponseField>
+    
+    <ResponseField name="count" type="number">
+      Number of times this bigram occurred.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+const bigrams = stream.bigramFreqDistHash();
+for (const bg of bigrams) {
+  console.log(`Bigram (${bg.leftHash}, ${bg.rightHash}): ${bg.count}`);
+}
+```
+
+#### conditionalFreqDistHash
+
+Returns conditional frequencies (POS tags with associated tokens).
+
+```typescript
+conditionalFreqDistHash(): StreamConditionalFreq[]
+```
+
+**Returns:** Array of conditional frequency objects.
+
+<ResponseField name="StreamConditionalFreq[]" type="array">
+  <Expandable title="StreamConditionalFreq properties">
+    <ResponseField name="tagId" type="number">
+      POS tag identifier.
+    </ResponseField>
+    
+    <ResponseField name="tokenHash" type="bigint">
+      Hash of the token.
+    </ResponseField>
+    
+    <ResponseField name="count" type="number">
+      Frequency count for this tag-token pair.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+const conditional = stream.conditionalFreqDistHash();
+for (const cf of conditional) {
+  console.log(`Tag ${cf.tagId} + Token ${cf.tokenHash}: ${cf.count}`);
+}
+```
+
+#### toJson
+
+Serializes all distributions to JSON format.
+
+```typescript
+toJson(): string
+```
+
+**Returns:** JSON string containing tokens, bigrams, and conditional tags.
+
+**Example:**
+
+```typescript
+const json = stream.toJson();
+const data = JSON.parse(json);
+console.log(data.tokens);
+console.log(data.bigrams);
+console.log(data.conditional_tags);
+```
+
+#### dispose
+
+Frees native resources. Call this when done with the stream to prevent memory leaks.
+
+```typescript
+dispose(): void
+```
+
+**Example:**
+
+```typescript
+const stream = new NativeFreqDistStream();
+try {
+  stream.update("Some text");
+  stream.flush();
+  const counts = stream.tokenFreqDistHash();
+} finally {
+  stream.dispose();
+}
+```
+
+### Complete Example
+
+```typescript
+import { NativeFreqDistStream } from 'bun_nltk';
+
+const stream = new NativeFreqDistStream();
+
+try {
+  // Process multiple documents
+  stream.update("The quick brown fox jumps over the lazy dog");
+  stream.update("The lazy dog sleeps all day");
+  stream.update("The quick fox runs fast");
+  
+  // Flush before reading
+  stream.flush();
+  
+  // Get statistics
+  console.log(`Unique tokens: ${stream.tokenUniqueCount()}`);
+  console.log(`Unique bigrams: ${stream.bigramUniqueCount()}`);
+  
+  // Get frequency distributions
+  const tokenFreqs = stream.tokenFreqDistHash();
+  console.log(`Total distinct tokens tracked: ${tokenFreqs.size}`);
+  
+  const bigrams = stream.bigramFreqDistHash();
+  console.log(`Total bigrams: ${bigrams.length}`);
+  
+  // Export to JSON
+  const json = stream.toJson();
+  console.log("Serialized data:", json);
+  
+} finally {
+  // Always dispose to free native memory
+  stream.dispose();
+}
+```
+
+## tokenFreqDistIdsAscii
+
+Computes token frequency distribution with ID mapping for ASCII text.
+
+```typescript
+function tokenFreqDistIdsAscii(text: string): TokenFreqDistIds
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  Input text to analyze. Must be ASCII-compatible.
+</ParamField>
+
+### Returns
+
+<ResponseField name="TokenFreqDistIds" type="object">
+  Token frequency data with ID mappings.
+  
+  <Expandable title="TokenFreqDistIds properties">
+    <ResponseField name="tokens" type="string[]">
+      Array of unique tokens in order.
+    </ResponseField>
+    
+    <ResponseField name="counts" type="number[]">
+      Frequency count for each token (parallel to tokens array).
+    </ResponseField>
+    
+    <ResponseField name="tokenToId" type="Map<string, number>">
+      Map from token string to its ID/index.
+    </ResponseField>
+    
+    <ResponseField name="totalTokens" type="number">
+      Total number of tokens (including duplicates).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```typescript
+import { tokenFreqDistIdsAscii } from 'bun_nltk';
+
+const text = "the quick brown fox jumps over the lazy dog";
+const dist = tokenFreqDistIdsAscii(text);
+
+console.log(dist.tokens);
+// ["the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
+
+console.log(dist.counts);
+// [2, 1, 1, 1, 1, 1, 1, 1]
+
+console.log(dist.tokenToId.get("the"));
+// 0
+
+console.log(dist.totalTokens);
+// 9
+```
+
+### Use Cases
+
+- Building vocabulary indices for ML models
+- Efficient token-to-ID mapping for further processing
+- Analyzing word frequency distributions
+- Preparing data for n-gram analysis
+
+## ngramFreqDistHashAscii
+
+Computes n-gram frequency distribution using hash-based representation.
+
+```typescript
+function ngramFreqDistHashAscii(text: string, n: number): Map<bigint, number>
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  Input text to analyze.
+</ParamField>
+
+<ParamField path="n" type="number" required>
+  N-gram size (e.g., 2 for bigrams, 3 for trigrams). Must be a positive integer.
+</ParamField>
+
+### Returns
+
+<ResponseField name="Map<bigint, number>" type="Map">
+  Map where keys are n-gram hashes and values are occurrence counts.
+</ResponseField>
+
+### Example
+
+```typescript
+import { ngramFreqDistHashAscii } from 'bun_nltk';
+
+const text = "the quick brown fox jumps over the lazy dog";
+
+// Bigram frequencies
+const bigrams = ngramFreqDistHashAscii(text, 2);
+console.log(`Found ${bigrams.size} unique bigrams`);
+
+// Trigram frequencies
+const trigrams = ngramFreqDistHashAscii(text, 3);
+console.log(`Found ${trigrams.size} unique trigrams`);
+
+for (const [hash, count] of bigrams) {
+  console.log(`N-gram hash ${hash}: ${count} occurrences`);
+}
+```
+
+### Performance
+
+<Info>
+  Hash-based representation allows constant-time lookups and insertions, making this extremely efficient for large texts.
+</Info>
+
+<Warning>
+  Hashes do not preserve the original n-gram text. Use `ngramsAsciiNative()` if you need the actual token sequences.
+</Warning>
+
+### Related APIs
+
+- [POS Tagging](/api-reference/tagging/pos-tagging) - Tag tokens before frequency analysis
+- [Perceptron Tagger](/api-reference/tagging/perceptron-tagger) - ML-based tagging

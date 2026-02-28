@@ -1,0 +1,429 @@
+---
+title: Stemming
+description: Reduce words to their root form using the Porter stemmer
+---
+
+Stemming reduces words to their base or root form by removing suffixes. bun_nltk implements the Porter stemming algorithm with optimized native performance.
+
+## Quick Start
+
+```typescript
+import { porterStemAscii } from "bun_nltk";
+
+const word = "running";
+const stem = porterStemAscii(word);
+console.log(stem); // "run"
+```
+
+## Porter Stemmer
+
+The Porter stemmer is the most widely-used stemming algorithm for English.
+
+### Single Word Stemming
+
+```typescript
+import { porterStemAscii } from "bun_nltk";
+
+const examples = [
+  "running",    // → "run"
+  "flies",      // → "fli"
+  "happily",    // → "happili"
+  "organization", // → "organ"
+  "studies",    // → "studi"
+];
+
+for (const word of examples) {
+  const stem = porterStemAscii(word);
+  console.log(`${word} → ${stem}`);
+}
+```
+
+**Signature:**
+```typescript
+function porterStemAscii(token: string): string
+```
+
+**Input:** Any ASCII word (lowercase recommended)  
+**Output:** Stemmed form of the word  
+**Performance:** Uses optimized native implementation
+
+<Steps>
+  <Step title="Stem Verbs">
+    ```typescript
+    import { porterStemAscii } from "bun_nltk";
+
+    const verbs = [
+      "running",   // → "run"
+      "walked",    // → "walk"
+      "flies",     // → "fli"
+      "swimming",  // → "swim"
+      "played",    // → "play"
+    ];
+
+    const stems = verbs.map(porterStemAscii);
+    console.log(stems);
+    ```
+  </Step>
+
+  <Step title="Stem Nouns">
+    ```typescript
+    import { porterStemAscii } from "bun_nltk";
+
+    const nouns = [
+      "cats",       // → "cat"
+      "ponies",     // → "poni"
+      "cities",     // → "citi"
+      "churches",   // → "church"
+    ];
+
+    const stems = nouns.map(porterStemAscii);
+    console.log(stems);
+    ```
+  </Step>
+
+  <Step title="Stem Adjectives">
+    ```typescript
+    import { porterStemAscii } from "bun_nltk";
+
+    const adjectives = [
+      "happier",    // → "happier"
+      "happiest",   // → "happiest"
+      "beautiful",  // → "beauti"
+      "careful",    // → "care"
+    ];
+
+    const stems = adjectives.map(porterStemAscii);
+    console.log(stems);
+    ```
+  </Step>
+</Steps>
+
+## Batch Operations
+
+Process multiple words efficiently.
+
+### Stem Token Array
+
+```typescript
+import { porterStemAsciiTokens } from "bun_nltk";
+
+const tokens = ["running", "jumps", "played", "swimming"];
+const stems = porterStemAsciiTokens(tokens);
+console.log(stems);
+// ["run", "jump", "play", "swim"]
+```
+
+**Signature:**
+```typescript
+function porterStemAsciiTokens(tokens: string[]): string[]
+```
+
+### Pipeline with Tokenization
+
+```typescript
+import { tokenizeAsciiNative, porterStemAsciiTokens } from "bun_nltk";
+
+const text = "The cats are running and jumping";
+
+// Tokenize
+const tokens = tokenizeAsciiNative(text);
+// ["the", "cats", "are", "running", "and", "jumping"]
+
+// Stem
+const stems = porterStemAsciiTokens(tokens);
+// ["the", "cat", "are", "run", "and", "jump"]
+```
+
+### Process Documents
+
+```typescript
+import { tokenizeAsciiNative, porterStemAsciiTokens } from "bun_nltk";
+
+const documents = [
+  "The dogs are running in circles",
+  "Cats jump over fences",
+  "Birds fly through the skies"
+];
+
+const stemmedDocs = documents.map(doc => {
+  const tokens = tokenizeAsciiNative(doc);
+  const stems = porterStemAsciiTokens(tokens);
+  return stems.join(" ");
+});
+
+console.log(stemmedDocs);
+// [
+//   "the dog are run in circl",
+//   "cat jump over fenc",  
+//   "bird fli through the ski"
+// ]
+```
+
+## Common Use Cases
+
+### Search Query Normalization
+
+```typescript
+import { tokenizeAsciiNative, porterStemAsciiTokens } from "bun_nltk";
+
+function normalizeQuery(query: string): string[] {
+  const tokens = tokenizeAsciiNative(query);
+  return porterStemAsciiTokens(tokens);
+}
+
+const userQuery = "running shoes for athletes";
+const normalized = normalizeQuery(userQuery);
+console.log(normalized);
+// ["run", "shoe", "for", "athlet"]
+
+// Index documents with the same stemming
+const document = "Best running shoe for professional athletes";
+const docTerms = normalizeQuery(document);
+// ["best", "run", "shoe", "for", "profession", "athlet"]
+
+// Both contain: ["run", "shoe", "athlet"]
+```
+
+### Text Clustering
+
+```typescript
+import { tokenizeAsciiNative, porterStemAsciiTokens } from "bun_nltk";
+
+const documents = [
+  "machine learning algorithms",
+  "learning machines and algorithms",
+  "algorithmic machine learners"
+];
+
+const normalized = documents.map(doc => {
+  const tokens = tokenizeAsciiNative(doc);
+  const stems = porterStemAsciiTokens(tokens);
+  return new Set(stems);
+});
+
+// All contain: {"machin", "learn", "algorithm"}
+// Documents are similar despite different word forms
+```
+
+### Term Frequency Analysis
+
+```typescript
+import { tokenizeAsciiNative, porterStemAsciiTokens } from "bun_nltk";
+
+const text = `
+  The runner ran quickly. Running is healthy.
+  Runners often run marathons. Many people enjoy running.
+`;
+
+const tokens = tokenizeAsciiNative(text);
+const stems = porterStemAsciiTokens(tokens);
+
+// Count stem frequencies
+const freq = new Map<string, number>();
+for (const stem of stems) {
+  freq.set(stem, (freq.get(stem) || 0) + 1);
+}
+
+console.log(freq.get("run")); // 5
+// Counts: "runner", "ran", "running", "runners", "run"
+```
+
+### Information Retrieval
+
+```typescript
+import { tokenizeAsciiNative, porterStemAsciiTokens } from "bun_nltk";
+
+function createInvertedIndex(documents: string[]) {
+  const index = new Map<string, Set<number>>();
+  
+  for (const [docId, doc] of documents.entries()) {
+    const tokens = tokenizeAsciiNative(doc);
+    const stems = porterStemAsciiTokens(tokens);
+    
+    for (const stem of new Set(stems)) {
+      if (!index.has(stem)) {
+        index.set(stem, new Set());
+      }
+      index.get(stem)!.add(docId);
+    }
+  }
+  
+  return index;
+}
+
+const docs = [
+  "cats and dogs playing",
+  "the cat plays with toys",
+  "dogs play in the park"
+];
+
+const index = createInvertedIndex(docs);
+console.log(index.get("play")); // Set { 0, 1, 2 }
+// Matches: "playing", "plays", "play"
+```
+
+## Stemming Rules
+
+The Porter algorithm applies transformations in multiple steps:
+
+### Step 1: Plurals and -ed/-ing
+
+```typescript
+// Examples
+"caresses"  → "caress"   // -es removal
+"ponies"    → "poni"     // -ies → -i
+"cats"      → "cat"      // -s removal  
+"agreed"    → "agree"    // -ed removal
+"running"   → "run"      // -ing removal
+```
+
+### Step 2-4: Derivational Suffixes
+
+```typescript
+"relational" → "relate"   // -ational → -ate
+"conditional" → "condition" // -ional → -ion
+"national"  → "nation"   // -al removal
+"activate"  → "activ"    // -ate removal
+```
+
+### Step 5: Final cleanup
+
+```typescript
+"probate"   → "probat"   // -e removal
+"rate"      → "rate"     // keeps short -e
+"cease"     → "ceas"     // -e removal
+```
+
+<Note>
+  The Porter stemmer may produce stems that are not valid English words (e.g., "happili", "fli"). This is expected behavior.
+</Note>
+
+## Integration with Other Features
+
+### With Text Normalization
+
+```typescript
+import { normalizeTokens, porterStemAsciiTokens } from "bun_nltk";
+
+const text = "The running cats and jumping dogs";
+
+// Normalize (tokenize + remove stopwords)
+const normalized = normalizeTokens(text, {
+  removeStopwords: true,
+  stem: false  // Don't stem yet
+});
+// ["running", "cats", "jumping", "dogs"]
+
+// Then stem
+const stems = porterStemAsciiTokens(normalized);
+// ["run", "cat", "jump", "dog"]
+
+// Or use built-in stemming option
+const combined = normalizeTokens(text, {
+  removeStopwords: true,
+  stem: true  // Normalize + stem in one step
+});
+// ["run", "cat", "jump", "dog"]
+```
+
+### With POS Tagging
+
+```typescript
+import { posTagAsciiNative, porterStemAscii } from "bun_nltk";
+
+const text = "The cats are running";
+const tags = posTagAsciiNative(text);
+
+// Stem only nouns and verbs
+const stemmed = tags.map(tag => {
+  if (tag.tag.startsWith("NN") || tag.tag.startsWith("VB")) {
+    return porterStemAscii(tag.token.toLowerCase());
+  }
+  return tag.token.toLowerCase();
+});
+
+console.log(stemmed);
+// ["the", "cat", "are", "run"]
+```
+
+## Performance Tips
+
+<Steps>
+  <Step title="Use Batch Function">
+    ```typescript
+    // Faster
+    const stems = porterStemAsciiTokens(tokens);
+    
+    // Slower (creates more function call overhead)
+    const stems = tokens.map(porterStemAscii);
+    ```
+  </Step>
+
+  <Step title="Lowercase Input">
+    ```typescript
+    // Porter expects lowercase
+    const text = "Running QUICKLY";
+    const tokens = tokenizeAsciiNative(text); // Already lowercases
+    const stems = porterStemAsciiTokens(tokens);
+    ```
+  </Step>
+
+  <Step title="Cache Results">
+    ```typescript
+    const stemCache = new Map<string, string>();
+    
+    function cachedStem(word: string): string {
+      if (!stemCache.has(word)) {
+        stemCache.set(word, porterStemAscii(word));
+      }
+      return stemCache.get(word)!;
+    }
+    ```
+  </Step>
+</Steps>
+
+## Limitations
+
+<Warning>
+  Stemming is aggressive and can cause over-stemming:
+  - "organization" → "organ" (loses meaning)
+  - "university" → "univers" (not a word)
+  - "better" → "better" (irregular forms not handled)
+  
+  Consider using lemmatization for more accurate results when exact word forms matter.
+</Warning>
+
+### Over-stemming Examples
+
+```typescript
+import { porterStemAscii } from "bun_nltk";
+
+const words = [
+  "universal",   // → "univers"
+  "university",  // → "univers"  (same stem, different meanings)
+  "organization", // → "organ"    (very different meaning)
+  "news",        // → "new"      (loses plural sense)
+];
+
+for (const word of words) {
+  console.log(`${word} → ${porterStemAscii(word)}`);
+}
+```
+
+### Under-stemming Examples
+
+```typescript
+import { porterStemAscii } from "bun_nltk";
+
+const words = [
+  "good",        // → "good"
+  "better",      // → "better"  (should match "good")
+  "best",        // → "best"    (should match "good")
+];
+
+// Irregular forms require lemmatization
+```
+
+<Tip>
+  For search applications, stemming is usually good enough and much faster than lemmatization. For linguistic analysis, consider lemmatization.
+</Tip>

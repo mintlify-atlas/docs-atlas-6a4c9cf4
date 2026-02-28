@@ -1,0 +1,176 @@
+---
+title: 'N-gram Language Models'
+description: 'NgramLanguageModel class and model types for statistical language modeling'
+---
+
+## NgramLanguageModel
+
+The `NgramLanguageModel` class implements statistical n-gram language models with support for multiple smoothing techniques.
+
+### Constructor
+
+```typescript
+new NgramLanguageModel(sentences: string[][], options: NgramLanguageModelOptions)
+```
+
+**Parameters:**
+- `sentences` (`string[][]`) - Training corpus as an array of tokenized sentences
+- `options` (`NgramLanguageModelOptions`) - Configuration options (see below)
+
+**Example:**
+
+```typescript
+import { NgramLanguageModel } from 'bun_nltk';
+
+const sentences = [
+  ['the', 'cat', 'sat'],
+  ['the', 'dog', 'ran'],
+  ['cats', 'and', 'dogs']
+];
+
+const model = new NgramLanguageModel(sentences, {
+  order: 2,
+  model: 'lidstone',
+  gamma: 0.1
+});
+```
+
+## Model Types
+
+The `LanguageModelType` determines the smoothing algorithm used for probability estimation.
+
+### MLE (Maximum Likelihood Estimation)
+
+```typescript
+const model = new NgramLanguageModel(sentences, {
+  order: 3,
+  model: 'mle'
+});
+```
+
+Basic n-gram model using relative frequency estimation. Provides no smoothing for unseen n-grams.
+
+**Best for:** Large training corpora with good coverage
+
+### Lidstone Smoothing
+
+```typescript
+const model = new NgramLanguageModel(sentences, {
+  order: 3,
+  model: 'lidstone',
+  gamma: 0.1
+});
+```
+
+Adds a small constant (gamma) to all n-gram counts to handle unseen events.
+
+**Parameters:**
+- `gamma` (`number`, default: `0.1`) - Smoothing parameter
+
+**Best for:** Smaller corpora requiring simple additive smoothing
+
+### Kneser-Ney Interpolated
+
+```typescript
+const model = new NgramLanguageModel(sentences, {
+  order: 3,
+  model: 'kneser_ney_interpolated',
+  discount: 0.75
+});
+```
+
+Advanced smoothing using absolute discounting and interpolation with lower-order models.
+
+**Parameters:**
+- `discount` (`number`, default: `0.75`) - Discount value for absolute discounting
+
+**Best for:** State-of-the-art performance on most tasks
+
+## Options
+
+### NgramLanguageModelOptions
+
+```typescript
+type NgramLanguageModelOptions = {
+  order: number;
+  model?: LanguageModelType;
+  gamma?: number;
+  discount?: number;
+  padLeft?: boolean;
+  padRight?: boolean;
+  startToken?: string;
+  endToken?: string;
+};
+```
+
+**Properties:**
+
+- `order` (`number`, required) - N-gram order (e.g., 2 for bigrams, 3 for trigrams)
+- `model` (`LanguageModelType`, optional) - Model type: `'mle'`, `'lidstone'`, or `'kneser_ney_interpolated'` (default: `'mle'`)
+- `gamma` (`number`, optional) - Lidstone smoothing parameter (default: `0.1`)
+- `discount` (`number`, optional) - Kneser-Ney discount parameter (default: `0.75`)
+- `padLeft` (`boolean`, optional) - Add start tokens to beginning of sentences (default: `true`)
+- `padRight` (`boolean`, optional) - Add end token to end of sentences (default: `true`)
+- `startToken` (`string`, optional) - Token for sentence start (default: `'<s>'`)
+- `endToken` (`string`, optional) - Token for sentence end (default: `'</s>'`)
+
+## Properties
+
+The `NgramLanguageModel` instance exposes the following read-only properties:
+
+```typescript
+model.order // number - N-gram order
+model.model // LanguageModelType - Model type
+model.gamma // number - Smoothing parameter
+model.discount // number - Discount parameter
+model.padLeft // boolean - Left padding enabled
+model.padRight // boolean - Right padding enabled
+model.startToken // string - Start token
+model.endToken // string - End token
+model.vocabulary // string[] - Sorted vocabulary from training data
+```
+
+## Examples
+
+### Bigram Model with MLE
+
+```typescript
+const bigramModel = new NgramLanguageModel(sentences, {
+  order: 2,
+  model: 'mle'
+});
+
+console.log(bigramModel.score('cat', ['the'])); // P(cat | the)
+```
+
+### Trigram Model with Kneser-Ney
+
+```typescript
+const trigramModel = new NgramLanguageModel(sentences, {
+  order: 3,
+  model: 'kneser_ney_interpolated',
+  discount: 0.75
+});
+
+console.log(trigramModel.score('sat', ['the', 'cat'])); // P(sat | the cat)
+```
+
+### Custom Padding Tokens
+
+```typescript
+const model = new NgramLanguageModel(sentences, {
+  order: 2,
+  startToken: '<START>',
+  endToken: '<END>'
+});
+```
+
+### Disable Padding
+
+```typescript
+const model = new NgramLanguageModel(sentences, {
+  order: 2,
+  padLeft: false,
+  padRight: false
+});
+```

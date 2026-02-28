@@ -1,0 +1,304 @@
+---
+title: Decision Tree Classifier
+description: Decision tree text classifier with entropy-based splitting
+---
+
+## DecisionTreeTextClassifier
+
+A decision tree classifier for text that uses information gain (entropy reduction) to build binary splits on text features.
+
+### Constructor
+
+```typescript
+new DecisionTreeTextClassifier(options?: {
+  maxDepth?: number;
+  minSamples?: number;
+  maxCandidateFeatures?: number;
+  maxFeatures?: number;
+})
+```
+
+**Parameters:**
+- `maxDepth` (optional): Maximum tree depth (default: 8, minimum: 1)
+- `minSamples` (optional): Minimum samples to split a node (default: 2, minimum: 1)
+- `maxCandidateFeatures` (optional): Max features to consider per split (default: 256, minimum: 4)
+- `maxFeatures` (optional): Max features in vectorizer vocabulary (default: 10000, minimum: 128)
+
+**Example:**
+```typescript
+import { DecisionTreeTextClassifier } from "bun_nltk";
+
+const classifier = new DecisionTreeTextClassifier({
+  maxDepth: 10,
+  minSamples: 5,
+  maxFeatures: 8000,
+});
+```
+
+### Methods
+
+#### train()
+
+Train the decision tree on labeled examples.
+
+```typescript
+train(examples: DecisionTreeExample[]): this
+```
+
+**Parameters:**
+- `examples`: Array of `{ label: string, text: string }` objects
+
+**Returns:** The classifier instance (for chaining)
+
+**Throws:** Error if examples array is empty
+
+**Example:**
+```typescript
+classifier.train([
+  { label: "positive", text: "Great service and fast delivery" },
+  { label: "negative", text: "Poor quality, not worth the price" },
+  { label: "positive", text: "Excellent product, highly satisfied" },
+]);
+```
+
+#### classify()
+
+Predict the label for a text by traversing the decision tree.
+
+```typescript
+classify(text: string): string
+```
+
+**Parameters:**
+- `text`: The text to classify
+
+**Returns:** The predicted label
+
+**Throws:** Error if classifier is not trained
+
+**Example:**
+```typescript
+const label = classifier.classify("Amazing quality and value");
+console.log(label); // "positive"
+```
+
+#### predict()
+
+Get predictions with scores for all labels.
+
+```typescript
+predict(text: string): Array<{ label: string; score: number }>
+```
+
+**Returns:** Array of objects with label and score (1 for predicted label, 0 for others)
+
+**Example:**
+```typescript
+const predictions = classifier.predict("Disappointing experience");
+console.log(predictions);
+// [
+//   { label: "negative", score: 1 },
+//   { label: "positive", score: 0 }
+// ]
+```
+
+#### evaluate()
+
+Evaluate the classifier on test examples.
+
+```typescript
+evaluate(examples: DecisionTreeExample[]): {
+  accuracy: number;
+  total: number;
+  correct: number;
+}
+```
+
+**Parameters:**
+- `examples`: Test examples with known labels
+
+**Returns:** Object with accuracy (0-1), total count, and correct count
+
+**Example:**
+```typescript
+const results = classifier.evaluate(testData);
+console.log(`Accuracy: ${(results.accuracy * 100).toFixed(1)}%`);
+console.log(`Correct: ${results.correct}/${results.total}`);
+```
+
+#### toJSON()
+
+Serialize the decision tree to JSON.
+
+```typescript
+toJSON(): DecisionTreeSerialized
+```
+
+**Returns:** Serialized model object including tree structure and vectorizer
+
+**Throws:** Error if classifier is not trained
+
+**Example:**
+```typescript
+const modelData = classifier.toJSON();
+await Bun.write("tree-model.json", JSON.stringify(modelData));
+```
+
+#### fromJSON()
+
+Load a decision tree from serialized data.
+
+```typescript
+static fromJSON(payload: DecisionTreeSerialized): DecisionTreeTextClassifier
+```
+
+**Parameters:**
+- `payload`: Serialized model data (version must be 1)
+
+**Returns:** Loaded classifier instance
+
+**Throws:** Error if version is unsupported
+
+**Example:**
+```typescript
+const data = await Bun.file("tree-model.json").json();
+const classifier = DecisionTreeTextClassifier.fromJSON(data);
+```
+
+## Helper Functions
+
+### trainDecisionTreeTextClassifier()
+
+Train a decision tree classifier in one function call.
+
+```typescript
+trainDecisionTreeTextClassifier(
+  examples: DecisionTreeExample[],
+  options?: {
+    maxDepth?: number;
+    minSamples?: number;
+    maxCandidateFeatures?: number;
+    maxFeatures?: number;
+  }
+): DecisionTreeTextClassifier
+```
+
+**Example:**
+```typescript
+import { trainDecisionTreeTextClassifier } from "bun_nltk";
+
+const classifier = trainDecisionTreeTextClassifier(
+  [
+    { label: "question", text: "How do I reset my password?" },
+    { label: "complaint", text: "Service is down again" },
+    { label: "question", text: "What are your business hours?" },
+  ],
+  { maxDepth: 8, maxFeatures: 5000 }
+);
+```
+
+### loadDecisionTreeTextClassifier()
+
+Load a serialized decision tree classifier.
+
+```typescript
+loadDecisionTreeTextClassifier(
+  payload: DecisionTreeSerialized
+): DecisionTreeTextClassifier
+```
+
+**Example:**
+```typescript
+import { loadDecisionTreeTextClassifier } from "bun_nltk";
+
+const data = await Bun.file("tree-model.json").json();
+const classifier = loadDecisionTreeTextClassifier(data);
+```
+
+## Types
+
+### DecisionTreeExample
+
+```typescript
+type DecisionTreeExample = {
+  label: string;
+  text: string;
+};
+```
+
+### DecisionTreeSerialized
+
+```typescript
+type DecisionTreeSerialized = {
+  version: number;
+  labels: string[];
+  options: {
+    maxDepth: number;
+    minSamples: number;
+    maxCandidateFeatures: number;
+  };
+  vectorizer: VectorizerSerialized;
+  tree: DecisionTreeNodeSerialized;
+};
+```
+
+## Complete Example
+
+```typescript
+import {
+  trainDecisionTreeTextClassifier,
+  loadDecisionTreeTextClassifier,
+} from "bun_nltk";
+
+// Training data
+const trainingData = [
+  { label: "urgent", text: "Critical bug in production system" },
+  { label: "normal", text: "Update documentation for API" },
+  { label: "urgent", text: "Database connection failing" },
+  { label: "low", text: "Improve button styling" },
+  { label: "normal", text: "Add unit tests for utils" },
+  { label: "urgent", text: "Security vulnerability detected" },
+];
+
+// Train with custom settings
+const classifier = trainDecisionTreeTextClassifier(trainingData, {
+  maxDepth: 6,
+  minSamples: 2,
+  maxFeatures: 3000,
+});
+
+// Classify new tickets
+const ticket = "Server is not responding to requests";
+const priority = classifier.classify(ticket);
+console.log(`Priority: ${priority}`); // "urgent"
+
+// Get detailed predictions
+const predictions = classifier.predict(ticket);
+console.log(predictions);
+
+// Evaluate accuracy
+const testData = [
+  { label: "urgent", text: "Application crashed" },
+  { label: "low", text: "Update footer text" },
+];
+const metrics = classifier.evaluate(testData);
+console.log(`Accuracy: ${(metrics.accuracy * 100).toFixed(1)}%`);
+
+// Save and load model
+const modelData = classifier.toJSON();
+await Bun.write("decision-tree.json", JSON.stringify(modelData));
+
+const loaded = loadDecisionTreeTextClassifier(
+  await Bun.file("decision-tree.json").json()
+);
+console.log(loaded.classify("Fix broken link")); // Uses loaded model
+```
+
+## How It Works
+
+The decision tree:
+1. **Vectorizes** text using n-grams (unigrams and bigrams) with binary features
+2. **Builds splits** by selecting features that maximize information gain (entropy reduction)
+3. **Limits candidates** per split to the most frequent features for efficiency
+4. **Stops splitting** when max depth, min samples, or pure nodes are reached
+5. **Classifies** by traversing the tree based on feature presence/absence

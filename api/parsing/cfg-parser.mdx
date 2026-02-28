@@ -1,0 +1,224 @@
+---
+title: CFG Parser
+description: Context-free grammar parsing with chart parser
+---
+
+## parseCfgGrammar
+
+Parse context-free grammar (CFG) from text format.
+
+```typescript
+function parseCfgGrammar(
+  grammarText: string,
+  options?: { startSymbol?: string }
+): CfgGrammar
+```
+
+### Parameters
+
+<ParamField path="grammarText" type="string" required>
+  Grammar rules in text format. Each rule has the form:
+  ```
+  Nonterminal -> RHS | RHS | ...
+  ```
+  
+  - Left-hand side: Single nonterminal (uppercase, e.g., `S`, `NP`, `VP`)
+  - Right-hand side: Space-separated symbols
+    - Nonterminals: Uppercase identifiers
+    - Terminals: Quoted strings (`'word'` or `"word"`)
+  - Multiple alternatives separated by `|`
+  - Comments start with `#`
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Start symbol for parsing. Defaults to the left-hand side of the first rule.
+</ParamField>
+
+### Returns
+
+Parsed grammar object with:
+- `startSymbol`: string - Grammar start symbol
+- `productions`: CfgProduction[] - Array of productions, each with:
+  - `lhs`: string - Left-hand side nonterminal
+  - `rhs`: string[] - Right-hand side symbols
+
+### Example
+
+```typescript
+import { parseCfgGrammar } from "bun_nltk";
+
+const grammarText = `
+# Simple grammar
+S -> NP VP
+NP -> DT NN | 'she'
+VP -> VB NP | VB
+DT -> 'the' | 'a'
+NN -> 'dog' | 'cat'
+VB -> 'saw' | 'walked'
+`;
+
+const grammar = parseCfgGrammar(grammarText);
+// {
+//   startSymbol: "S",
+//   productions: [
+//     { lhs: "S", rhs: ["NP", "VP"] },
+//     { lhs: "NP", rhs: ["DT", "NN"] },
+//     { lhs: "NP", rhs: ["she"] },
+//     ...
+//   ]
+// }
+```
+
+---
+
+## chartParse
+
+Parse tokens using CYK chart parsing algorithm.
+
+```typescript
+function chartParse(
+  tokens: string[],
+  grammar: CfgGrammar,
+  options?: {
+    maxTrees?: number;
+    startSymbol?: string;
+  }
+): ParseTree[]
+```
+
+### Parameters
+
+<ParamField path="tokens" type="string[]" required>
+  Array of tokens to parse
+</ParamField>
+
+<ParamField path="grammar" type="CfgGrammar" required>
+  Parsed CFG grammar from `parseCfgGrammar`
+</ParamField>
+
+<ParamField path="options.maxTrees" type="number" default={8}>
+  Maximum number of parse trees to return. Must be at least 1.
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Override start symbol from grammar
+</ParamField>
+
+### Returns
+
+Array of parse trees (up to `maxTrees`), where each tree has:
+- `label`: string - Node label (nonterminal or terminal)
+- `children`: Array of ParseTree or string - Child nodes or terminal strings
+
+Trees are sorted by node count (simplest first).
+
+### Example
+
+```typescript
+import { parseCfgGrammar, chartParse } from "bun_nltk";
+
+const grammar = parseCfgGrammar(`
+S -> NP VP
+NP -> 'she'
+VP -> 'runs'
+`);
+
+const tokens = ["she", "runs"];
+const trees = chartParse(tokens, grammar);
+
+console.log(trees[0]);
+// {
+//   label: "S",
+//   children: [
+//     { label: "NP", children: ["she"] },
+//     { label: "VP", children: ["runs"] }
+//   ]
+// }
+```
+
+### Algorithm
+
+Uses CYK (Cocke-Younger-Kasami) chart parsing:
+- Converts grammar to Chomsky Normal Form (CNF)
+- Builds parse chart bottom-up
+- Handles unary chains and binary rules
+- Native optimization for recognition
+
+---
+
+## parseTextWithCfg
+
+Parse natural language text using CFG grammar.
+
+```typescript
+function parseTextWithCfg(
+  text: string,
+  grammar: CfgGrammar | string,
+  options?: {
+    maxTrees?: number;
+    startSymbol?: string;
+    normalizeTokens?: boolean;
+  }
+): ParseTree[]
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  Natural language text to parse
+</ParamField>
+
+<ParamField path="grammar" type="CfgGrammar | string" required>
+  Parsed grammar or grammar text string
+</ParamField>
+
+<ParamField path="options.maxTrees" type="number" default={8}>
+  Maximum parse trees to return
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Override grammar start symbol
+</ParamField>
+
+<ParamField path="options.normalizeTokens" type="boolean" default={true}>
+  Convert tokens to lowercase before parsing
+</ParamField>
+
+### Returns
+
+Array of parse trees. See `chartParse` for tree structure.
+
+### Example
+
+```typescript
+import { parseTextWithCfg } from "bun_nltk";
+
+const grammar = `
+S -> NP VP
+NP -> 'the' NN | 'she'
+VP -> VB | VB NP
+NN -> 'dog' | 'cat'
+VB -> 'runs' | 'sees'
+`;
+
+const trees = parseTextWithCfg("She runs", grammar);
+console.log(trees[0]);
+// {
+//   label: "S",
+//   children: [
+//     { label: "NP", children: ["she"] },
+//     { label: "VP", children: [{ label: "VB", children: ["runs"] }] }
+//   ]
+// }
+```
+
+### Processing
+
+1. Tokenizes text using word tokenizer
+2. Filters to alphanumeric tokens
+3. Normalizes to lowercase (if enabled)
+4. Parses with `chartParse`
+
+### Grammar Format
+
+See `parseCfgGrammar` for grammar syntax details.

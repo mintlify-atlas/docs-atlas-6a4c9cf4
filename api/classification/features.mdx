@@ -1,0 +1,426 @@
+---
+title: Feature Extraction
+description: Text feature vectorization for machine learning classifiers
+---
+
+## TextFeatureVectorizer
+
+Converts text into sparse numerical feature vectors using n-gram tokenization. Used internally by classifiers like decision trees and linear models.
+
+### Constructor
+
+```typescript
+new TextFeatureVectorizer(options?: {
+  ngramMin?: number;
+  ngramMax?: number;
+  binary?: boolean;
+  maxFeatures?: number;
+})
+```
+
+**Parameters:**
+- `ngramMin` (optional): Minimum n-gram size (default: 1, minimum: 1)
+- `ngramMax` (optional): Maximum n-gram size (default: 1, minimum: ngramMin)
+- `binary` (optional): Use binary features (presence/absence) instead of counts (default: false)
+- `maxFeatures` (optional): Maximum vocabulary size (default: 12000, minimum: 64)
+
+**Example:**
+```typescript
+import { TextFeatureVectorizer } from "bun_nltk";
+
+const vectorizer = new TextFeatureVectorizer({
+  ngramMin: 1,
+  ngramMax: 2,  // Use unigrams and bigrams
+  binary: false,  // Count features
+  maxFeatures: 5000,
+});
+```
+
+### Properties
+
+#### featureCount
+
+Get the number of features in the vocabulary.
+
+```typescript
+get featureCount(): number
+```
+
+**Example:**
+```typescript
+console.log(vectorizer.featureCount); // 0 before fitting
+vectorizer.fit(["hello world", "hello there"]);
+console.log(vectorizer.featureCount); // 4 after fitting
+```
+
+### Methods
+
+#### fit()
+
+Build the vocabulary from a corpus of texts.
+
+```typescript
+fit(texts: string[]): this
+```
+
+**Parameters:**
+- `texts`: Array of text documents
+
+**Returns:** The vectorizer instance (for chaining)
+
+**Details:**
+- Extracts n-grams from all texts
+- Selects the most frequent n-grams up to `maxFeatures`
+- Builds internal feature-to-id mapping
+
+**Example:**
+```typescript
+const corpus = [
+  "machine learning is fun",
+  "deep learning is powerful",
+  "learning algorithms",
+];
+
+vectorizer.fit(corpus);
+console.log(vectorizer.vocabulary());
+// ["learning", "is", "machine", "deep", ...]
+```
+
+#### transform()
+
+Convert a single text into a sparse feature vector.
+
+```typescript
+transform(text: string): SparseVector
+```
+
+**Parameters:**
+- `text`: The text to vectorize
+
+**Returns:** `SparseVector` with `indices` and `values` arrays
+
+**Example:**
+```typescript
+const vector = vectorizer.transform("machine learning");
+console.log(vector);
+// {
+//   indices: Uint32Array [0, 2],  // Feature IDs
+//   values: Float64Array [1, 1]   // Feature values
+// }
+```
+
+#### transformMany()
+
+Convert multiple texts into sparse vectors.
+
+```typescript
+transformMany(texts: string[]): SparseVector[]
+```
+
+**Parameters:**
+- `texts`: Array of texts to vectorize
+
+**Returns:** Array of sparse vectors
+
+**Example:**
+```typescript
+const vectors = vectorizer.transformMany([
+  "deep learning",
+  "machine learning",
+]);
+console.log(vectors.length); // 2
+```
+
+#### vocabulary()
+
+Get the ordered list of features.
+
+```typescript
+vocabulary(): string[]
+```
+
+**Returns:** Array of feature strings sorted by feature ID
+
+**Example:**
+```typescript
+const vocab = vectorizer.vocabulary();
+console.log(vocab);
+// ["learning", "is", "machine", "deep", "fun", "powerful", ...]
+```
+
+#### toJSON()
+
+Serialize the vectorizer to JSON.
+
+```typescript
+toJSON(): VectorizerSerialized
+```
+
+**Returns:** Serialized vectorizer object
+
+**Example:**
+```typescript
+const data = vectorizer.toJSON();
+await Bun.write("vectorizer.json", JSON.stringify(data));
+```
+
+#### fromJSON()
+
+Load a vectorizer from serialized data.
+
+```typescript
+static fromJSON(payload: VectorizerSerialized): TextFeatureVectorizer
+```
+
+**Parameters:**
+- `payload`: Serialized vectorizer data (version must be 1)
+
+**Returns:** Loaded vectorizer instance
+
+**Throws:** Error if version is unsupported
+
+**Example:**
+```typescript
+const data = await Bun.file("vectorizer.json").json();
+const vectorizer = TextFeatureVectorizer.fromJSON(data);
+```
+
+## Utility Functions
+
+### flattenSparseBatch()
+
+Flatten a batch of sparse vectors into a compact representation for efficient batch processing.
+
+```typescript
+flattenSparseBatch(rows: SparseVector[]): {
+  docOffsets: Uint32Array;
+  featureIds: Uint32Array;
+  featureValues: Float64Array;
+}
+```
+
+**Parameters:**
+- `rows`: Array of sparse vectors
+
+**Returns:** Object with flattened representation:
+  - `docOffsets`: Cumulative offsets for each document (length = rows.length + 1)
+  - `featureIds`: Concatenated feature indices
+  - `featureValues`: Concatenated feature values
+
+**Example:**
+```typescript
+import { flattenSparseBatch, TextFeatureVectorizer } from "bun_nltk";
+
+const vectorizer = new TextFeatureVectorizer();
+vectorizer.fit(["hello world", "hello there"]);
+
+const vectors = vectorizer.transformMany(["hello", "world"]);
+const batch = flattenSparseBatch(vectors);
+
+console.log(batch);
+// {
+//   docOffsets: Uint32Array [0, 1, 2],
+//   featureIds: Uint32Array [0, 1],
+//   featureValues: Float64Array [1, 1]
+// }
+```
+
+## Types
+
+### SparseVector
+
+```typescript
+type SparseVector = {
+  indices: Uint32Array;  // Feature IDs (sorted)
+  values: Float64Array;  // Feature values
+};
+```
+
+Represents a document as a sparse vector where:
+- `indices[i]` is the feature ID
+- `values[i]` is the corresponding value (count or 1 if binary)
+- Arrays are parallel and sorted by feature ID
+
+### VectorizerSerialized
+
+```typescript
+type VectorizerSerialized = {
+  version: number;
+  ngramMin: number;
+  ngramMax: number;
+  binary: boolean;
+  maxFeatures: number;
+  vocabulary: string[];
+};
+```
+
+### VectorizerOptions
+
+```typescript
+type VectorizerOptions = {
+  ngramMin?: number;
+  ngramMax?: number;
+  binary?: boolean;
+  maxFeatures?: number;
+};
+```
+
+## Complete Example
+
+```typescript
+import { TextFeatureVectorizer, flattenSparseBatch } from "bun_nltk";
+
+// Create vectorizer with bigrams
+const vectorizer = new TextFeatureVectorizer({
+  ngramMin: 1,
+  ngramMax: 2,
+  binary: false,  // Use counts
+  maxFeatures: 1000,
+});
+
+// Training corpus
+const corpus = [
+  "natural language processing",
+  "machine learning algorithms",
+  "deep learning neural networks",
+  "text classification and sentiment analysis",
+];
+
+// Fit vocabulary
+vectorizer.fit(corpus);
+console.log(`Vocabulary size: ${vectorizer.featureCount}`);
+
+// Get vocabulary
+const vocab = vectorizer.vocabulary();
+console.log("Top features:", vocab.slice(0, 10));
+
+// Transform single document
+const doc = "machine learning and deep learning";
+const vector = vectorizer.transform(doc);
+console.log("Sparse vector:");
+for (let i = 0; i < vector.indices.length; i++) {
+  const featureId = vector.indices[i]!;
+  const value = vector.values[i]!;
+  const feature = vocab[featureId];
+  console.log(`  ${feature}: ${value}`);
+}
+// Output:
+// machine: 1
+// learning: 2
+// and: 1
+// deep: 1
+// machine\u0001learning: 1
+// deep\u0001learning: 1
+
+// Transform batch
+const documents = [
+  "natural language",
+  "machine learning",
+  "deep learning",
+];
+const vectors = vectorizer.transformMany(documents);
+console.log(`Transformed ${vectors.length} documents`);
+
+// Flatten for batch processing
+const batch = flattenSparseBatch(vectors);
+console.log("Flattened batch:");
+console.log(`  Documents: ${batch.docOffsets.length - 1}`);
+console.log(`  Total features: ${batch.featureIds.length}`);
+
+// Save vectorizer
+const data = vectorizer.toJSON();
+await Bun.write("vectorizer.json", JSON.stringify(data));
+
+// Load vectorizer
+const loaded = TextFeatureVectorizer.fromJSON(
+  await Bun.file("vectorizer.json").json()
+);
+const newVector = loaded.transform("natural language processing");
+console.log("Loaded vectorizer works!", newVector.indices.length);
+```
+
+## N-gram Configuration
+
+### Unigrams Only (1,1)
+```typescript
+const vectorizer = new TextFeatureVectorizer({
+  ngramMin: 1,
+  ngramMax: 1,
+});
+
+vectorizer.fit(["hello world"]);
+console.log(vectorizer.vocabulary());
+// ["hello", "world"]
+```
+
+### Bigrams Only (2,2)
+```typescript
+const vectorizer = new TextFeatureVectorizer({
+  ngramMin: 2,
+  ngramMax: 2,
+});
+
+vectorizer.fit(["hello world there"]);
+console.log(vectorizer.vocabulary());
+// ["hello\u0001world", "world\u0001there"]
+```
+
+### Unigrams + Bigrams (1,2)
+```typescript
+const vectorizer = new TextFeatureVectorizer({
+  ngramMin: 1,
+  ngramMax: 2,
+});
+
+vectorizer.fit(["hello world"]);
+console.log(vectorizer.vocabulary());
+// ["hello", "world", "hello\u0001world"]
+```
+
+### Unigrams + Bigrams + Trigrams (1,3)
+```typescript
+const vectorizer = new TextFeatureVectorizer({
+  ngramMin: 1,
+  ngramMax: 3,
+});
+
+vectorizer.fit(["hello world there"]);
+console.log(vectorizer.vocabulary());
+// [
+//   "hello", "world", "there",
+//   "hello\u0001world", "world\u0001there",
+//   "hello\u0001world\u0001there"
+// ]
+```
+
+## Binary vs. Count Features
+
+### Count Features (binary: false)
+```typescript
+const vectorizer = new TextFeatureVectorizer({ binary: false });
+vectorizer.fit(["hello"]);
+
+const vector = vectorizer.transform("hello hello world");
+// vector.values = [2, 1]  // "hello" appears twice
+```
+
+### Binary Features (binary: true)
+```typescript
+const vectorizer = new TextFeatureVectorizer({ binary: true });
+vectorizer.fit(["hello"]);
+
+const vector = vectorizer.transform("hello hello world");
+// vector.values = [1, 1]  // Just presence/absence
+```
+
+## Tokenization
+
+The vectorizer uses the regex `/[A-Za-z0-9']+/g` to tokenize text:
+- Extracts alphanumeric sequences and apostrophes
+- Converts to lowercase
+- Splits on whitespace and punctuation
+
+**Examples:**
+- `"Hello, world!"` → `["hello", "world"]`
+- `"it's great"` → `["it's", "great"]`
+- `"user@email.com"` → `["user", "email", "com"]`

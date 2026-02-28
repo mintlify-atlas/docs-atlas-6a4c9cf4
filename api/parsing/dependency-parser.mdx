@@ -1,0 +1,193 @@
+---
+title: Dependency Parser
+description: Rule-based dependency parsing for English sentences
+---
+
+## dependencyParse
+
+Parse tokens into dependency tree structure.
+
+```typescript
+function dependencyParse(
+  tokens: string[],
+  posTags?: string[]
+): DependencyParse
+```
+
+### Parameters
+
+<ParamField path="tokens" type="string[]" required>
+  Array of tokens to parse. Tokens are normalized to lowercase.
+</ParamField>
+
+<ParamField path="posTags" type="string[]">
+  Optional POS tags for tokens. If not provided, tags are automatically generated using the built-in POS tagger.
+</ParamField>
+
+### Returns
+
+Dependency parse structure with:
+- `tokens`: string[] - Normalized token list
+- `posTags`: string[] - POS tags for each token
+- `root`: number - Index of root token (usually main verb)
+- `arcs`: DependencyArc[] - Array of dependency arcs, each with:
+  - `head`: number - Index of head token
+  - `dep`: number - Index of dependent token
+  - `relation`: string - Dependency relation type
+
+### Relations
+
+Supported dependency relations:
+- `nsubj` - Nominal subject (pre-verbal nouns)
+- `obj` - Object (post-verbal nouns)
+- `amod` - Adjectival modifier
+- `advmod` - Adverbial modifier
+- `prep` - Prepositional modifier
+- `punct` - Punctuation
+- `dep` - Generic dependent
+
+### Example
+
+```typescript
+import { dependencyParse } from "bun_nltk";
+
+const tokens = ["The", "dog", "runs", "quickly"];
+const parse = dependencyParse(tokens);
+
+console.log(parse);
+// {
+//   tokens: ["the", "dog", "runs", "quickly"],
+//   posTags: ["DT", "NN", "VBZ", "RB"],
+//   root: 2,  // "runs"
+//   arcs: [
+//     { head: 1, dep: 0, relation: "det" },
+//     { head: 2, dep: 1, relation: "nsubj" },
+//     { head: 2, dep: 3, relation: "advmod" }
+//   ]
+// }
+```
+
+### With POS Tags
+
+```typescript
+import { dependencyParse } from "bun_nltk";
+
+const tokens = ["She", "saw", "him"];
+const posTags = ["PRP", "VBD", "PRP"];
+
+const parse = dependencyParse(tokens, posTags);
+console.log(parse);
+// {
+//   tokens: ["she", "saw", "him"],
+//   posTags: ["PRP", "VBD", "PRP"],
+//   root: 1,  // "saw"
+//   arcs: [
+//     { head: 1, dep: 0, relation: "nsubj" },
+//     { head: 1, dep: 2, relation: "obj" }
+//   ]
+// }
+```
+
+---
+
+## dependencyParseText
+
+Parse natural language text into dependency structure.
+
+```typescript
+function dependencyParseText(
+  text: string,
+  options?: { normalizeTokens?: boolean }
+): DependencyParse
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  Natural language text to parse
+</ParamField>
+
+<ParamField path="options.normalizeTokens" type="boolean" default={true}>
+  Convert tokens to lowercase before parsing
+</ParamField>
+
+### Returns
+
+Dependency parse structure. See `dependencyParse` for structure details.
+
+### Example
+
+```typescript
+import { dependencyParseText } from "bun_nltk";
+
+const parse = dependencyParseText("The quick brown fox jumps.");
+
+console.log(parse);
+// {
+//   tokens: ["the", "quick", "brown", "fox", "jumps"],
+//   posTags: ["DT", "JJ", "JJ", "NN", "VBZ"],
+//   root: 4,  // "jumps"
+//   arcs: [
+//     { head: 3, dep: 0, relation: "det" },
+//     { head: 3, dep: 1, relation: "amod" },
+//     { head: 3, dep: 2, relation: "amod" },
+//     { head: 4, dep: 3, relation: "nsubj" }
+//   ]
+// }
+```
+
+### Processing
+
+1. Tokenizes text using word tokenizer
+2. Filters to alphanumeric tokens (removes punctuation)
+3. Normalizes to lowercase (if enabled)
+4. Generates POS tags automatically
+5. Builds dependency parse
+
+### Root Selection
+
+The root is selected as:
+1. First verb-like token (VB* tags or auxiliary verbs)
+2. Falls back to first token if no verb found
+
+### Parse Algorithm
+
+Uses rule-based heuristics:
+- Identifies main verb as root
+- Attaches pre-verbal nouns as subjects
+- Attaches post-verbal nouns as objects
+- Attaches adjectives to nearest following noun
+- Attaches adverbs to root verb
+- Attaches prepositions to root
+- Attaches punctuation to root
+
+### Visualizing Dependencies
+
+```typescript
+import { dependencyParseText } from "bun_nltk";
+
+const parse = dependencyParseText("She loves pizza");
+
+// Build dependency tree visualization
+for (const arc of parse.arcs) {
+  const head = parse.tokens[arc.head];
+  const dep = parse.tokens[arc.dep];
+  console.log(`${head} --[${arc.relation}]--> ${dep}`);
+}
+// loves --[nsubj]--> she
+// loves --[obj]--> pizza
+```
+
+### Limitations
+
+This is a rule-based parser with limitations:
+- Simple heuristics, not statistical
+- Limited relation types
+- Best for simple English sentences
+- No handling of complex clauses
+- No prepositional phrase attachment
+
+For production use, consider:
+- spaCy's dependency parser
+- Stanford CoreNLP
+- Neural dependency parsers

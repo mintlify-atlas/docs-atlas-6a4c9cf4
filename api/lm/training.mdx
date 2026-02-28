@@ -1,0 +1,272 @@
+---
+title: 'Training N-gram Models'
+description: 'Train n-gram language models with various smoothing options and padding configurations'
+---
+
+## trainNgramLanguageModel
+
+Convenience function to train an n-gram language model from tokenized sentences.
+
+```typescript
+function trainNgramLanguageModel(
+  sentences: string[][],
+  options: NgramLanguageModelOptions
+): NgramLanguageModel
+```
+
+**Parameters:**
+- `sentences` (`string[][]`) - Training corpus as an array of tokenized sentences
+- `options` (`NgramLanguageModelOptions`) - Model configuration options
+
+**Returns:** `NgramLanguageModel` instance trained on the provided data
+
+## Basic Usage
+
+```typescript
+import { trainNgramLanguageModel } from 'bun_nltk';
+
+const corpus = [
+  ['i', 'love', 'natural', 'language', 'processing'],
+  ['machine', 'learning', 'is', 'fun'],
+  ['language', 'models', 'are', 'powerful']
+];
+
+const model = trainNgramLanguageModel(corpus, {
+  order: 2,
+  model: 'lidstone',
+  gamma: 0.1
+});
+```
+
+## Training Options
+
+### Order Selection
+
+The `order` parameter determines the n-gram size:
+
+```typescript
+// Unigram model (order 1)
+const unigram = trainNgramLanguageModel(corpus, { order: 1 });
+
+// Bigram model (order 2)
+const bigram = trainNgramLanguageModel(corpus, { order: 2 });
+
+// Trigram model (order 3)
+const trigram = trainNgramLanguageModel(corpus, { order: 3 });
+
+// 4-gram model (order 4)
+const fourgram = trainNgramLanguageModel(corpus, { order: 4 });
+```
+
+**Guidelines:**
+- Higher order = more context, but requires more training data
+- Order 2-3 works well for most applications
+- Order 4+ may suffer from data sparsity
+
+### Model Type Selection
+
+```typescript
+// MLE (no smoothing)
+const mleModel = trainNgramLanguageModel(corpus, {
+  order: 2,
+  model: 'mle'
+});
+
+// Lidstone smoothing
+const lidstoneModel = trainNgramLanguageModel(corpus, {
+  order: 2,
+  model: 'lidstone',
+  gamma: 0.1 // Smoothing strength
+});
+
+// Kneser-Ney interpolated
+const knModel = trainNgramLanguageModel(corpus, {
+  order: 2,
+  model: 'kneser_ney_interpolated',
+  discount: 0.75 // Discount parameter
+});
+```
+
+### Smoothing Parameters
+
+#### Gamma (Lidstone)
+
+Controls the amount of probability mass redistributed to unseen events:
+
+```typescript
+// Light smoothing
+const lightSmoothing = trainNgramLanguageModel(corpus, {
+  order: 2,
+  model: 'lidstone',
+  gamma: 0.01
+});
+
+// Medium smoothing (default)
+const mediumSmoothing = trainNgramLanguageModel(corpus, {
+  order: 2,
+  model: 'lidstone',
+  gamma: 0.1
+});
+
+// Heavy smoothing
+const heavySmoothing = trainNgramLanguageModel(corpus, {
+  order: 2,
+  model: 'lidstone',
+  gamma: 1.0
+});
+```
+
+#### Discount (Kneser-Ney)
+
+Controls absolute discounting in Kneser-Ney smoothing:
+
+```typescript
+const knModel = trainNgramLanguageModel(corpus, {
+  order: 3,
+  model: 'kneser_ney_interpolated',
+  discount: 0.75 // Typical range: 0.5-0.9
+});
+```
+
+## Padding Configuration
+
+### Left Padding (Start Tokens)
+
+Add start tokens to the beginning of sentences:
+
+```typescript
+// With left padding (default)
+const withPadding = trainNgramLanguageModel(corpus, {
+  order: 2,
+  padLeft: true,
+  startToken: '<s>'
+});
+// Sentences become: ['<s>', 'i', 'love', ...]
+
+// Without left padding
+const noPadding = trainNgramLanguageModel(corpus, {
+  order: 2,
+  padLeft: false
+});
+// Sentences remain: ['i', 'love', ...]
+```
+
+**When to use:**
+- Enable `padLeft` to model sentence beginnings
+- Disable for mid-sentence predictions only
+
+### Right Padding (End Tokens)
+
+Add end tokens to the end of sentences:
+
+```typescript
+// With right padding (default)
+const withEndToken = trainNgramLanguageModel(corpus, {
+  order: 2,
+  padRight: true,
+  endToken: '</s>'
+});
+// Sentences become: [..., 'processing', '</s>']
+
+// Without right padding
+const noEndToken = trainNgramLanguageModel(corpus, {
+  order: 2,
+  padRight: false
+});
+// Sentences remain: [..., 'processing']
+```
+
+**When to use:**
+- Enable `padRight` to model sentence endings
+- Disable for continuous text modeling
+
+### Custom Padding Tokens
+
+```typescript
+const model = trainNgramLanguageModel(corpus, {
+  order: 2,
+  padLeft: true,
+  padRight: true,
+  startToken: '<BOS>', // Beginning of sentence
+  endToken: '<EOS>' // End of sentence
+});
+```
+
+### Complete Padding Example
+
+```typescript
+const sentences = [['the', 'cat', 'sat']];
+
+// With padding (order 2)
+const padded = trainNgramLanguageModel(sentences, {
+  order: 2,
+  padLeft: true,
+  padRight: true,
+  startToken: '<s>',
+  endToken: '</s>'
+});
+// Processed as: ['<s>', 'the', 'cat', 'sat', '</s>']
+// N-grams: ['<s>', 'the'], ['the', 'cat'], ['cat', 'sat'], ['sat', '</s>']
+
+// Without padding
+const unpadded = trainNgramLanguageModel(sentences, {
+  order: 2,
+  padLeft: false,
+  padRight: false
+});
+// Processed as: ['the', 'cat', 'sat']
+// N-grams: ['the', 'cat'], ['cat', 'sat']
+```
+
+## Training Data Format
+
+Input must be an array of tokenized sentences:
+
+```typescript
+// Correct format
+const corpus = [
+  ['hello', 'world'],
+  ['natural', 'language', 'processing'],
+  ['is', 'amazing']
+];
+
+// Each sentence is pre-tokenized
+const model = trainNgramLanguageModel(corpus, { order: 2 });
+```
+
+**Important:**
+- Sentences must be pre-tokenized (split into words)
+- Use lowercase tokens for case-insensitive models
+- Remove or handle punctuation before training
+
+## Complete Example
+
+```typescript
+import { trainNgramLanguageModel } from 'bun_nltk';
+
+// Prepare training data
+const trainingData = [
+  ['the', 'quick', 'brown', 'fox'],
+  ['the', 'lazy', 'dog', 'slept'],
+  ['a', 'quick', 'cat', 'jumped']
+];
+
+// Train trigram model with Kneser-Ney smoothing
+const model = trainNgramLanguageModel(trainingData, {
+  order: 3,
+  model: 'kneser_ney_interpolated',
+  discount: 0.75,
+  padLeft: true,
+  padRight: true,
+  startToken: '<s>',
+  endToken: '</s>'
+});
+
+console.log('Vocabulary size:', model.vocabulary.length);
+console.log('Model order:', model.order);
+console.log('Model type:', model.model);
+
+// Use the model
+const prob = model.score('fox', ['quick', 'brown']);
+console.log('P(fox | quick brown):', prob);
+```

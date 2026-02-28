@@ -1,0 +1,410 @@
+---
+title: POS Tagging
+description: Tag words with parts of speech using heuristic and perceptron taggers
+---
+
+Part-of-speech (POS) tagging assigns grammatical categories (noun, verb, adjective, etc.) to each word in text. bun_nltk provides both rule-based and machine learning approaches.
+
+## Quick Start
+
+```typescript
+import { posTagAsciiNative } from "bun_nltk";
+
+const text = "The quick brown fox jumps over the lazy dog";
+const tags = posTagAsciiNative(text);
+// [
+//   { token: "The", tag: "DT", tagId: 6, start: 0, length: 3 },
+//   { token: "quick", tag: "NN", tagId: 0, start: 4, length: 5 },
+//   { token: "brown", tag: "NN", tagId: 0, start: 10, length: 5 },
+//   { token: "fox", tag: "NN", tagId: 0, start: 16, length: 3 },
+//   { token: "jumps", tag: "NN", tagId: 0, start: 20, length: 5 },
+//   { token: "over", tag: "NN", tagId: 0, start: 26, length: 4 },
+//   { token: "the", tag: "DT", tagId: 6, start: 31, length: 3 },
+//   { token: "lazy", tag: "NN", tagId: 0, start: 35, length: 4 },
+//   { token: "dog", tag: "NN", tagId: 0, start: 40, length: 3 }
+// ]
+```
+
+## Tag Set
+
+bun_nltk uses a simplified Penn Treebank tag set:
+
+| Tag | Description | Examples |
+|-----|-------------|----------|
+| **NN** | Noun (common) | cat, tree, idea |
+| **NNP** | Noun (proper) | London, John, Microsoft |
+| **CD** | Cardinal number | 1, 42, thousand |
+| **VBG** | Verb (gerund/present participle) | running, eating |
+| **VBD** | Verb (past tense) | walked, jumped |
+| **RB** | Adverb | quickly, very |
+| **DT** | Determiner | the, a, this |
+| **CC** | Coordinating conjunction | and, or, but |
+| **PRP** | Personal pronoun | I, you, he, she |
+| **VB** | Verb (base form) | is, have, do |
+
+## Fast Rule-Based Tagger
+
+Heuristic tagger with instant results.
+
+### Basic Usage
+
+```typescript
+import { posTagAscii } from "bun_nltk";
+
+const text = "She is running quickly";
+const tags = posTagAscii(text);
+console.log(tags);
+// [
+//   { token: "She", tag: "PRP", tagId: 8, start: 0, length: 3 },
+//   { token: "is", tag: "VB", tagId: 9, start: 4, length: 2 },
+//   { token: "running", tag: "VBG", tagId: 3, start: 7, length: 7 },
+//   { token: "quickly", tag: "RB", tagId: 5, start: 15, length: 7 }
+// ]
+```
+
+**Return Type:**
+```typescript
+type PosTag = {
+  token: string;   // Original token
+  tag: string;     // POS tag (e.g., "NN", "VB")
+  tagId: number;   // Numeric tag ID
+  start: number;   // Character offset in original text
+  length: number;  // Token length in characters
+};
+```
+
+### Heuristic Rules
+
+The rule-based tagger uses these patterns:
+
+<Steps>
+  <Step title="Numbers">
+    ```typescript
+    // Pattern: /^\d+$/
+    "42" → CD
+    "2024" → CD
+    ```
+  </Step>
+
+  <Step title="Pronouns">
+    ```typescript
+    // Closed list
+    "I", "you", "he", "she", "it" → PRP
+    "me", "him", "her", "us", "them" → PRP
+    ```
+  </Step>
+
+  <Step title="Determiners">
+    ```typescript
+    // Closed list  
+    "a", "an", "the" → DT
+    "this", "that", "these", "those" → DT
+    ```
+  </Step>
+
+  <Step title="Conjunctions">
+    ```typescript
+    // Closed list
+    "and", "or", "but", "yet", "nor" → CC
+    ```
+  </Step>
+
+  <Step title="Verb Forms">
+    ```typescript
+    // Closed list + patterns
+    "is", "am", "are", "was", "were" → VB
+    "do", "does", "did", "have", "has", "had" → VB
+    /ing$/ → VBG
+    /ed$/ → VBD
+    ```
+  </Step>
+
+  <Step title="Adverbs">
+    ```typescript
+    // Pattern
+    /ly$/ → RB
+    "quickly", "slowly", "carefully" → RB
+    ```
+  </Step>
+
+  <Step title="Proper Nouns">
+    ```typescript
+    // Capitalization
+    /^[A-Z]/ && length > 1 → NNP
+    "London", "Microsoft" → NNP
+    ```
+  </Step>
+
+  <Step title="Common Nouns">
+    ```typescript
+    // Default fallback
+    Everything else → NN
+    ```
+  </Step>
+</Steps>
+
+## Perceptron Tagger
+
+Machine learning-based tagger with higher accuracy.
+
+### Using a Pre-trained Model
+
+<Steps>
+  <Step title="Load Model">
+    ```typescript
+    import { loadPerceptronTaggerModel } from "bun_nltk";
+
+    // Load default bundled model
+    const model = loadPerceptronTaggerModel();
+
+    // Or load custom model
+    const customModel = loadPerceptronTaggerModel(
+      "./models/custom_tagger.json"
+    );
+    ```
+  </Step>
+
+  <Step title="Tag Text">
+    ```typescript
+    import { posTagPerceptronAscii } from "bun_nltk";
+
+    const text = "The cat sat on the mat";
+    const tags = posTagPerceptronAscii(text, { model });
+
+    console.log(tags);
+    // [
+    //   { token: "The", tag: "DT", tagId: 6, start: 0, length: 3 },
+    //   { token: "cat", tag: "NN", tagId: 0, start: 4, length: 3 },
+    //   { token: "sat", tag: "VBD", tagId: 4, start: 8, length: 3 },
+    //   ...
+    // ]
+    ```
+  </Step>
+
+  <Step title="Performance Options">
+    ```typescript
+    import { posTagPerceptronAscii } from "bun_nltk";
+
+    type PerceptronTaggerOptions = {
+      model?: PerceptronTaggerModel;  // Pre-loaded model
+      wasm?: WasmNltk;                // WASM runtime
+      useWasm?: boolean;              // Prefer WASM (default: false)
+      useNative?: boolean;            // Prefer native (default: true)
+    };
+
+    // Use native implementation (fastest)
+    const tags1 = posTagPerceptronAscii(text, { 
+      model,
+      useNative: true 
+    });
+
+    // Use WASM implementation
+    const tags2 = posTagPerceptronAscii(text, { 
+      model,
+      useWasm: true,
+      wasm: wasmInstance 
+    });
+
+    // Use pure JavaScript fallback
+    const tags3 = posTagPerceptronAscii(text, { 
+      model,
+      useNative: false 
+    });
+    ```
+  </Step>
+</Steps>
+
+### Model Structure
+
+```typescript
+type PerceptronTaggerModel = {
+  version: number;                    // Model version
+  tags: string[];                     // Tag vocabulary
+  featureCount: number;               // Number of features
+  tagCount: number;                   // Number of tags
+  featureIndex: Record<string, number>; // Feature name → ID
+  weights: Float32Array;              // Model weights (featureCount × tagCount)
+  metadata?: Record<string, unknown>; // Optional metadata
+};
+```
+
+### Features Used
+
+The perceptron tagger uses these features for each token:
+
+```typescript
+// Position-based features
+"bias"                    // Always present
+"w=<token>"               // Current word (lowercase)
+"p1=<prefix>"             // First character
+"p2=<prefix>"             // First 2 characters
+"p3=<prefix>"             // First 3 characters  
+"s1=<suffix>"             // Last character
+"s2=<suffix>"             // Last 2 characters
+"s3=<suffix>"             // Last 3 characters
+
+// Context features
+"prev=<token>"            // Previous token
+"next=<token>"            // Next token
+
+// Token properties
+"is_upper=True"           // All uppercase
+"is_title=True"           // Starts with capital
+"has_digit=True"          // Contains digit
+"has_hyphen=True"         // Contains hyphen
+```
+
+### Example with Features
+
+```typescript
+import { posTagPerceptronAscii, loadPerceptronTaggerModel } from "bun_nltk";
+
+const model = loadPerceptronTaggerModel();
+const text = "John's running quickly";
+const tags = posTagPerceptronAscii(text, { model });
+
+// For "running":
+// Features include:
+//   w=running
+//   p1=r, p2=ru, p3=run
+//   s1=g, s2=ng, s3=ing
+//   prev=john, next=quickly
+//   is_upper=False, is_title=False
+//   has_digit=False, has_hyphen=False
+```
+
+## Native High-Performance Tagger
+
+```typescript
+import { posTagAsciiNative } from "bun_nltk";
+
+const text = "The quick brown fox jumps";
+const tags = posTagAsciiNative(text);
+
+// Uses optimized SIMD implementation
+// 10-100x faster than JavaScript version
+```
+
+<Tip>
+  Use `posTagAsciiNative` for maximum performance with the built-in rule-based tagger.
+</Tip>
+
+## Common Use Cases
+
+### Extract All Nouns
+
+```typescript
+import { posTagAsciiNative } from "bun_nltk";
+
+const text = "The cat and dog played in the garden";
+const tags = posTagAsciiNative(text);
+
+const nouns = tags
+  .filter(t => t.tag === "NN" || t.tag === "NNP")
+  .map(t => t.token);
+
+console.log(nouns);
+// ["cat", "dog", "garden"]
+```
+
+### Extract Proper Nouns (Named Entities)
+
+```typescript
+import { posTagAsciiNative } from "bun_nltk";
+
+const text = "John visited Paris and met Mary at the Eiffel Tower";
+const tags = posTagAsciiNative(text);
+
+const properNouns = tags
+  .filter(t => t.tag === "NNP")
+  .map(t => t.token);
+
+console.log(properNouns);
+// ["John", "Paris", "Mary", "Eiffel", "Tower"]
+```
+
+### Extract Verb Phrases
+
+```typescript
+import { posTagPerceptronAscii, loadPerceptronTaggerModel } from "bun_nltk";
+
+const model = loadPerceptronTaggerModel();
+const text = "She was running quickly and jumping high";
+const tags = posTagPerceptronAscii(text, { model });
+
+const verbs = tags
+  .filter(t => t.tag.startsWith("VB"))
+  .map(t => t.token);
+
+console.log(verbs);
+// ["was", "running", "jumping"]
+```
+
+### Batch Processing
+
+```typescript
+import { posTagAsciiNative } from "bun_nltk";
+
+const sentences = [
+  "The cat sleeps",
+  "Dogs bark loudly",
+  "Birds fly high"
+];
+
+const allTags = sentences.map(posTagAsciiNative);
+
+// Process results
+for (const [i, tags] of allTags.entries()) {
+  console.log(`Sentence ${i}:`);
+  for (const tag of tags) {
+    console.log(`  ${tag.token} → ${tag.tag}`);
+  }
+}
+```
+
+## Performance Comparison
+
+- **posTagAsciiNative**: Fastest, simple heuristics
+- **posTagPerceptronAscii (native)**: Fast, more accurate
+- **posTagPerceptronAscii (wasm)**: Moderate, portable
+- **posTagAscii**: Fast, JavaScript heuristics
+
+<Warning>
+  The rule-based tagger is less accurate than the perceptron tagger, especially for ambiguous words. Use perceptron for production applications.
+</Warning>
+
+## Preparing Custom Models
+
+If you have a trained model in JSON format:
+
+```typescript
+import { preparePerceptronTaggerModel } from "bun_nltk";
+
+const modelJson = await Bun.file("custom_tagger.json").json();
+const model = preparePerceptronTaggerModel(modelJson);
+
+// Use model
+const tags = posTagPerceptronAscii(text, { model });
+```
+
+**Model JSON Format:**
+```json
+{
+  "version": 1,
+  "type": "perceptron",
+  "tags": ["NN", "VB", "DT", ...],
+  "feature_count": 50000,
+  "tag_count": 10,
+  "feature_index": {
+    "bias": 0,
+    "w=the": 1,
+    "w=is": 2,
+    ...
+  },
+  "weights": [0.5, -0.3, 0.8, ...]
+}
+```
+
+<Note>
+  The weights array must have exactly `feature_count × tag_count` elements.
+</Note>

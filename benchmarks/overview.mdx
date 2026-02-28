@@ -1,0 +1,184 @@
+---
+title: Benchmark Overview
+description: Understanding bun_nltk's performance testing methodology and comparison approach
+---
+
+## Benchmark Methodology
+
+bun_nltk uses a comprehensive benchmark suite to measure performance across NLP operations, comparing native Zig implementations against Python NLTK baselines.
+
+## Test Environments
+
+### Datasets
+
+Benchmarks use two primary synthetic datasets:
+
+- **64MB synthetic dataset** (`bench/datasets/synthetic.txt`) - Used for core token/n-gram operations
+- **8MB gate dataset** - Used for specialized workloads (Punkt, language models, parsers)
+
+Generate synthetic test data:
+
+```bash
+bun run bench:generate
+```
+
+### Benchmark Types
+
+#### Native vs Python Comparison
+
+Direct performance comparison between bun_nltk's Zig implementation and Python NLTK:
+
+```bash
+bun run bench:compare
+bun run bench:compare:collocations
+bun run bench:compare:porter
+bun run bench:compare:sentence
+```
+
+#### WASM Performance Testing
+
+Compares three runtimes:
+- Native Zig (via Bun FFI)
+- WASM (compiled from Zig)
+- Python NLTK baseline
+
+```bash
+bun run bench:compare:wasm
+```
+
+#### Browser WASM Benchmarks
+
+Tests WASM performance in actual browser environments (Chromium/Firefox):
+
+```bash
+bun run bench:browser:wasm
+```
+
+## Comparison Approach
+
+### Performance Metrics
+
+**Execution Time**
+- Median execution time in seconds
+- Speedup ratio (Python time / bun_nltk time)
+- Percent improvement
+
+**Memory Usage**
+- Memory delta tracking
+- SLA gate enforcement for memory limits
+
+### Python Parity Testing
+
+All benchmarks include parity harnesses to ensure functional equivalence:
+
+```bash
+bun run bench:parity:all
+bun run parity:report
+```
+
+Parity tests validate that bun_nltk produces identical results to NLTK across:
+- Tokenizers
+- Punkt sentence splitting
+- Language models
+- Chunk parsers
+- WordNet lookups
+- POS taggers
+- Classifiers
+
+### Performance Gates
+
+bun_nltk enforces performance regression gates in CI:
+
+```bash
+bun run bench:gate      # Full performance gate
+bun run sla:gate        # SLA-only (p95 latency + memory)
+```
+
+**Tracked Metrics:**
+- Median execution time thresholds
+- p95 latency limits
+- Memory usage boundaries
+- WASM binary size budget
+
+### Trend Tracking
+
+Benchmark results are tracked over time:
+
+```bash
+bun run bench:trend:check    # Compare against baseline
+bun run bench:trend:record   # Record new baseline
+```
+
+CI uploads benchmark dashboard artifacts (JSON + Markdown) for each run.
+
+## Workload Categories
+
+### Core Token Operations
+- Token counting (ASCII with SIMD fast path)
+- Unique token counting
+- N-gram generation and counting
+- Frequency distributions
+
+### Text Processing
+- Sentence tokenization (Punkt)
+- Porter stemming
+- Normalization pipelines
+- Stopword filtering
+
+### Linguistic Analysis
+- POS tagging (Perceptron)
+- Chunk parsing (Regexp/IOB)
+- CFG/Chart parsing
+- Earley parsing
+- Dependency parsing
+
+### Advanced NLP
+- Language models (MLE, Lidstone, Kneser-Ney)
+- Text classification (Naive Bayes, Decision Tree, Logistic, Linear SVM)
+- Collocation detection (PMI scoring)
+- WordNet lookups and morphology
+
+## Benchmark Commands Reference
+
+```bash
+# Core comparisons
+bun run bench:compare                      # Token/n-gram operations
+bun run bench:compare:collocations         # PMI collocations
+bun run bench:compare:porter               # Porter stemmer
+bun run bench:compare:wasm                 # WASM vs native vs Python
+bun run bench:compare:sentence             # Sentence tokenizer
+bun run bench:compare:tagger               # POS tagger
+bun run bench:compare:freqdist             # Streaming FreqDist
+bun run bench:compare:simd                 # SIMD vs scalar
+
+# Extended workloads (8MB dataset)
+bun run bench:compare:punkt                # Punkt tokenizer
+bun run bench:compare:lm                   # Language models
+bun run bench:compare:chunk                # Chunk parser
+bun run bench:compare:wordnet              # WordNet + morphy
+bun run bench:compare:parser               # CFG chart parser
+bun run bench:compare:classifier           # Naive Bayes
+bun run bench:compare:decision-tree        # Decision tree
+bun run bench:compare:linear               # Sparse linear scorer
+bun run bench:compare:earley               # Earley parser
+
+# Parity validation
+bun run bench:parity:all                   # All parity tests
+bun run parity:report                      # Generate parity report
+
+# Performance gates
+bun run bench:gate                         # Run regression gate
+bun run sla:gate                           # Run SLA gate
+bun run bench:trend:check                  # Check performance trends
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Native vs Python" icon="gauge-high" href="/benchmarks/native-vs-python">
+    See detailed benchmark results and speedup tables
+  </Card>
+  <Card title="WASM Performance" icon="rocket" href="/benchmarks/wasm-performance">
+    Explore WASM vs native performance characteristics
+  </Card>
+</CardGroup>

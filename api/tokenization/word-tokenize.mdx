@@ -1,0 +1,87 @@
+---
+title: 'Word Tokenization'
+description: 'Word-level tokenization with support for contractions and social media text'
+---
+
+## wordTokenizeSubset
+
+Tokenize text into words with support for common English contractions.
+
+<ParamField path="text" type="string" required>
+  The text to tokenize
+</ParamField>
+
+<ResponseField name="tokens" type="string[]">
+  Array of word tokens with contractions split appropriately
+</ResponseField>
+
+```typescript
+import { wordTokenizeSubset } from 'bun_nltk';
+
+const text = "I can't believe it's working!";
+const tokens = wordTokenizeSubset(text);
+console.log(tokens);
+// ["I", "ca", "n't", "believe", "it", "'s", "working", "!"]
+```
+
+### Contraction Handling
+
+The tokenizer splits common contractions:
+- `n't` → separate token (e.g., "can't" → "ca", "n't")
+- `'s`, `'m`, `'d`, `'re`, `'ve`, `'ll` → separate tokens (e.g., "it's" → "it", "'s")
+
+## tweetTokenizeSubset
+
+Tokenize social media text with support for URLs, hashtags, mentions, and emojis.
+
+<ParamField path="text" type="string" required>
+  The social media text to tokenize
+</ParamField>
+
+<ParamField path="options" type="TweetTokenizerOptions">
+  Optional configuration for tweet tokenization
+</ParamField>
+
+<ParamField path="options.stripHandles" type="boolean" default="false">
+  Remove @mentions from the output
+</ParamField>
+
+<ParamField path="options.reduceLen" type="boolean" default="false">
+  Reduce repeated characters to maximum of 3 (e.g., "coooool" → "coool")
+</ParamField>
+
+<ParamField path="options.matchPhoneNumbers" type="boolean" default="true">
+  Detect and tokenize phone numbers as single tokens
+</ParamField>
+
+<ResponseField name="tokens" type="string[]">
+  Array of tokens including URLs, hashtags, mentions, and emojis
+</ResponseField>
+
+```typescript
+import { tweetTokenizeSubset } from 'bun_nltk';
+
+const tweet = "Check out https://example.com! #NLP @user 🚀";
+const tokens = tweetTokenizeSubset(tweet);
+console.log(tokens);
+// ["Check", "out", "https://example.com", "!", "#NLP", "@user", "🚀"]
+
+// Strip mentions
+const noMentions = tweetTokenizeSubset(tweet, { stripHandles: true });
+console.log(noMentions);
+// ["Check", "out", "https://example.com", "!", "#NLP", "🚀"]
+
+// Reduce repeated characters
+const text = "I loooove this sooooo much!!!";
+const reduced = tweetTokenizeSubset(text, { reduceLen: true });
+console.log(reduced);
+// ["I", "loove", "this", "sooo", "much", "!", "!", "!"]
+```
+
+### Detected Patterns
+
+- **URLs**: `http://` and `https://` links
+- **Hashtags**: `#tag` format
+- **Mentions**: `@username` format
+- **Emojis**: Unicode emoji sequences
+- **Phone numbers**: Various formats (optional)

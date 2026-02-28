@@ -1,122 +1,190 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "bun_nltk",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#10b981",
+    "light": "#34d399",
+    "dark": "#059669"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/Seyamalam/bun_nltk"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Seyamalam/bun_nltk"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/architecture",
+              "concepts/native-vs-wasm",
+              "concepts/performance"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/tokenization",
+              "guides/sentence-splitting",
+              "guides/pos-tagging",
+              "guides/stemming",
+              "guides/normalization"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Advanced Features",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "advanced/language-models",
+              "advanced/chunking",
+              "advanced/parsing",
+              "advanced/classification",
+              "advanced/wordnet",
+              "advanced/corpus-readers"
+            ]
+          },
+          {
+            "group": "WASM & Browser",
+            "pages": [
+              "wasm/browser-usage",
+              "wasm/runtime-api"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Tokenization",
             "pages": [
-              "api-reference/introduction"
+              "api/tokenization/ascii-tokenizer",
+              "api/tokenization/word-tokenize",
+              "api/tokenization/sentence-tokenize",
+              "api/tokenization/punkt"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Text Processing",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/processing/normalization",
+              "api/processing/stemming",
+              "api/processing/ngrams",
+              "api/processing/collocations"
+            ]
+          },
+          {
+            "group": "Tagging & Analysis",
+            "pages": [
+              "api/tagging/pos-tagging",
+              "api/tagging/perceptron-tagger",
+              "api/tagging/frequency-distributions"
+            ]
+          },
+          {
+            "group": "Language Models",
+            "pages": [
+              "api/lm/ngram-models",
+              "api/lm/training",
+              "api/lm/evaluation"
+            ]
+          },
+          {
+            "group": "Parsing",
+            "pages": [
+              "api/parsing/chunking",
+              "api/parsing/cfg-parser",
+              "api/parsing/earley-parser",
+              "api/parsing/dependency-parser",
+              "api/parsing/pcfg-parser"
+            ]
+          },
+          {
+            "group": "Classification",
+            "pages": [
+              "api/classification/naive-bayes",
+              "api/classification/decision-tree",
+              "api/classification/linear-models",
+              "api/classification/maxent",
+              "api/classification/features"
+            ]
+          },
+          {
+            "group": "WordNet",
+            "pages": [
+              "api/wordnet/loading",
+              "api/wordnet/synsets",
+              "api/wordnet/relations",
+              "api/wordnet/morphy"
+            ]
+          },
+          {
+            "group": "Corpus",
+            "pages": [
+              "api/corpus/corpus-reader",
+              "api/corpus/bundled-corpora",
+              "api/corpus/registry"
+            ]
+          },
+          {
+            "group": "WASM Runtime",
+            "pages": [
+              "api/wasm/initialization",
+              "api/wasm/methods"
+            ]
+          },
+          {
+            "group": "Native APIs",
+            "pages": [
+              "api/native/overview",
+              "api/native/performance-apis"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Benchmarks",
+            "pages": [
+              "benchmarks/overview",
+              "benchmarks/native-vs-python",
+              "benchmarks/wasm-performance"
+            ]
+          },
+          {
+            "group": "Migration",
+            "pages": [
+              "migration/from-nltk"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/versioning",
+              "reference/changelog"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,284 @@
+---
+title: PCFG Parser
+description: Probabilistic context-free grammar parsing with weighted rules
+---
+
+## parsePcfgGrammar
+
+Parse probabilistic context-free grammar (PCFG) from text format.
+
+```typescript
+function parsePcfgGrammar(
+  grammarText: string,
+  options?: { startSymbol?: string }
+): PcfgGrammar
+```
+
+### Parameters
+
+<ParamField path="grammarText" type="string" required>
+  Grammar rules with optional probabilities. Each rule has the form:
+  ```
+  Nonterminal -> RHS [prob] | RHS [prob] | ...
+  ```
+  
+  - Left-hand side: Single nonterminal (uppercase)
+  - Right-hand side: Space-separated symbols
+    - Nonterminals: Uppercase identifiers
+    - Terminals: Quoted strings (`'word'` or `"word"`)
+  - Probability: Optional `[0.5]` after RHS
+  - Multiple alternatives separated by `|`
+  - Comments start with `#`
+  
+  **Probability Normalization:**
+  - If no probabilities given: uniform distribution
+  - If some probabilities given: remaining mass distributed uniformly
+  - All probabilities normalized to sum to 1.0 per nonterminal
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Start symbol for parsing. Defaults to the left-hand side of the first rule.
+</ParamField>
+
+### Returns
+
+Parsed probabilistic grammar with:
+- `startSymbol`: string - Grammar start symbol
+- `productions`: PcfgProduction[] - Array of weighted productions, each with:
+  - `lhs`: string - Left-hand side nonterminal
+  - `rhs`: string[] - Right-hand side symbols
+  - `prob`: number - Production probability (0.0 to 1.0)
+
+### Example
+
+```typescript
+import { parsePcfgGrammar } from "bun_nltk";
+
+const grammarText = `
+# Probabilistic grammar
+S -> NP VP [0.9] | VP [0.1]
+NP -> DT NN [0.6] | 'she' [0.4]
+VP -> VB NP [0.7] | VB [0.3]
+DT -> 'the' [0.7] | 'a' [0.3]
+NN -> 'dog' [0.5] | 'cat' [0.5]
+VB -> 'saw' [0.6] | 'walked' [0.4]
+`;
+
+const grammar = parsePcfgGrammar(grammarText);
+// {
+//   startSymbol: "S",
+//   productions: [
+//     { lhs: "S", rhs: ["NP", "VP"], prob: 0.9 },
+//     { lhs: "S", rhs: ["VP"], prob: 0.1 },
+//     ...
+//   ]
+// }
+```
+
+### Partial Probabilities
+
+```typescript
+// Some rules with probabilities, others without
+const grammar = parsePcfgGrammar(`
+S -> NP VP [0.7] | VP
+NP -> 'she' | 'he'
+`);
+// S -> NP VP: 0.7, S -> VP: 0.3 (remaining mass)
+// NP -> 'she': 0.5, NP -> 'he': 0.5 (uniform)
+```
+
+---
+
+## probabilisticChartParse
+
+Find best parse using probabilistic CYK algorithm.
+
+```typescript
+function probabilisticChartParse(
+  tokens: string[],
+  grammar: PcfgGrammar,
+  options?: { startSymbol?: string }
+): ProbabilisticParse | null
+```
+
+### Parameters
+
+<ParamField path="tokens" type="string[]" required>
+  Array of tokens to parse
+</ParamField>
+
+<ParamField path="grammar" type="PcfgGrammar" required>
+  Parsed PCFG grammar from `parsePcfgGrammar`
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Override start symbol from grammar
+</ParamField>
+
+### Returns
+
+Best parse with probability, or `null` if unparsable:
+- `tree`: ParseTree - Best parse tree structure
+  - `label`: string - Node label
+  - `children`: Array of ParseTree or string - Child nodes
+- `logProb`: number - Log probability of parse
+- `prob`: number - Probability of parse (0.0 to 1.0)
+
+### Example
+
+```typescript
+import { parsePcfgGrammar, probabilisticChartParse } from "bun_nltk";
+
+const grammar = parsePcfgGrammar(`
+S -> NP VP [0.9]
+NP -> 'she' [1.0]
+VP -> 'runs' [1.0]
+`);
+
+const tokens = ["she", "runs"];
+const result = probabilisticChartParse(tokens, grammar);
+
+console.log(result);
+// {
+//   tree: {
+//     label: "S",
+//     children: [
+//       { label: "NP", children: ["she"] },
+//       { label: "VP", children: ["runs"] }
+//     ]
+//   },
+//   logProb: -0.105,
+//   prob: 0.9
+// }
+```
+
+### Algorithm
+
+Uses probabilistic CYK (Viterbi variant):
+- Converts grammar to weighted CNF
+- Builds chart with best parse per cell
+- Uses log probabilities to avoid underflow
+- Returns single highest-probability parse
+
+---
+
+## parseTextWithPcfg
+
+Parse natural language text using PCFG.
+
+```typescript
+function parseTextWithPcfg(
+  text: string,
+  grammar: PcfgGrammar | string,
+  options?: {
+    startSymbol?: string;
+    normalizeTokens?: boolean;
+  }
+): ProbabilisticParse | null
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  Natural language text to parse
+</ParamField>
+
+<ParamField path="grammar" type="PcfgGrammar | string" required>
+  Parsed grammar or grammar text string
+</ParamField>
+
+<ParamField path="options.startSymbol" type="string">
+  Override grammar start symbol
+</ParamField>
+
+<ParamField path="options.normalizeTokens" type="boolean" default={true}>
+  Convert tokens to lowercase before parsing
+</ParamField>
+
+### Returns
+
+Best parse with probability, or `null` if unparsable. See `probabilisticChartParse` for structure.
+
+### Example
+
+```typescript
+import { parseTextWithPcfg } from "bun_nltk";
+
+const grammar = `
+S -> NP VP [0.8] | VP [0.2]
+NP -> 'she' [0.6] | 'he' [0.4]
+VP -> VB [0.4] | VB NP [0.6]
+VB -> 'runs' [0.7] | 'likes' [0.3]
+`;
+
+const result = parseTextWithPcfg("She runs", grammar);
+console.log(result);
+// {
+//   tree: {
+//     label: "S",
+//     children: [
+//       { label: "NP", children: ["she"] },
+//       { label: "VP", children: [{ label: "VB", children: ["runs"] }] }
+//     ]
+//   },
+//   prob: 0.1344,  // 0.8 * 0.6 * 0.4 * 0.7
+//   logProb: -2.006
+// }
+```
+
+### Ambiguous Sentences
+
+```typescript
+import { parseTextWithPcfg } from "bun_nltk";
+
+const grammar = `
+S -> NP VP [1.0]
+NP -> DT NN [0.5] | NP PP [0.3] | 'i' [0.2]
+VP -> VB NP [0.6] | VP PP [0.4]
+PP -> 'with' NP [1.0]
+DT -> 'the' [1.0]
+NN -> 'telescope' [0.4] | 'man' [0.6]
+VB -> 'saw' [1.0]
+`;
+
+const text = "I saw the man with the telescope";
+const result = parseTextWithPcfg(text, grammar);
+
+// Returns highest probability parse:
+// Could be: VP attachment (saw [with telescope])
+//        or: NP attachment ([man with telescope])
+// Probabilities determine which interpretation
+```
+
+### Processing
+
+1. Tokenizes text using word tokenizer
+2. Filters to alphanumeric tokens
+3. Normalizes to lowercase (if enabled)
+4. Finds best parse with `probabilisticChartParse`
+
+### Use Cases
+
+- Disambiguating syntactic structure
+- Learning grammars from treebanks
+- Language modeling
+- MT and parsing systems
+- Preferring common constructions
+
+### Training PCFG
+
+Probabilities typically learned from annotated corpora:
+
+```typescript
+// Count production frequencies in treebank
+const counts = new Map<string, number>();
+// ... count productions in training data ...
+
+// Normalize to probabilities
+for (const [lhs, alternatives] of groupByLhs(counts)) {
+  const total = alternatives.reduce((sum, alt) => sum + alt.count, 0);
+  for (const alt of alternatives) {
+    alt.prob = alt.count / total;
+  }
+}
+```

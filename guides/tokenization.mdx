@@ -1,0 +1,227 @@
+---
+title: Tokenization
+description: Split text into tokens using ASCII tokenizers, word tokenizers, and tweet tokenizers
+---
+
+Tokenization is the process of breaking text into individual tokens (words, numbers, or symbols). bun_nltk provides several tokenizers optimized for different use cases.
+
+## Available Tokenizers
+
+### ASCII Tokenizer
+
+The fastest tokenizer for ASCII text. Automatically lowercase tokens.
+
+```typescript
+import { tokenizeAsciiNative } from "bun_nltk";
+
+const text = "Hello World! This is a test.";
+const tokens = tokenizeAsciiNative(text);
+// ["hello", "world", "this", "is", "a", "test"]
+```
+
+**Key Features:**
+- High-performance SIMD implementation
+- Matches pattern: `[A-Za-z0-9']+`
+- Automatically converts to lowercase
+- Returns `string[]`
+
+### Word Tokenizer
+
+Handles contractions and clitics like "n't", "'s", "'ll", etc.
+
+```typescript
+import { wordTokenizeSubset } from "bun_nltk";
+
+const text = "I can't believe it's working!";
+const tokens = wordTokenizeSubset(text);
+// ["I", "ca", "n't", "believe", "it", "'s", "working", "!"]
+```
+
+**Signature:**
+```typescript
+function wordTokenizeSubset(text: string): string[]
+```
+
+**Contraction Handling:**
+- `n't` → Splits as separate token (e.g., "can't" → "ca", "n't")
+- `'s`, `'m`, `'d`, `'re`, `'ve`, `'ll` → Splits and lowercases (e.g., "it's" → "it", "'s")
+
+<Steps>
+  <Step title="Basic Usage">
+    ```typescript
+    import { wordTokenizeSubset } from "bun_nltk";
+
+    const text = "They'll be there soon.";
+    const tokens = wordTokenizeSubset(text);
+    console.log(tokens);
+    // ["They", "'ll", "be", "there", "soon"]
+    ```
+  </Step>
+
+  <Step title="Handling Contractions">
+    ```typescript
+    const examples = [
+      "I'm happy",      // ["I", "'m", "happy"]
+      "don't worry",    // ["don", "n't", "worry"]
+      "we've done it",  // ["we", "'ve", "done", "it"]
+    ];
+
+    for (const text of examples) {
+      console.log(wordTokenizeSubset(text));
+    }
+    ```
+  </Step>
+</Steps>
+
+### Tweet Tokenizer
+
+Specialized tokenizer for social media text with support for hashtags, mentions, URLs, and emojis.
+
+```typescript
+import { tweetTokenizeSubset } from "bun_nltk";
+
+const tweet = "Check out @bun_nltk! #NLP https://example.com 😊";
+const tokens = tweetTokenizeSubset(tweet);
+// ["Check", "out", "@bun_nltk", "!", "#NLP", "https://example.com", "😊"]
+```
+
+**Signature:**
+```typescript
+type TweetTokenizerOptions = {
+  stripHandles?: boolean;        // Remove @mentions (default: false)
+  reduceLen?: boolean;           // Reduce repeated characters (default: false)
+  matchPhoneNumbers?: boolean;   // Match phone numbers (default: true)
+};
+
+function tweetTokenizeSubset(
+  text: string, 
+  options?: TweetTokenizerOptions
+): string[]
+```
+
+<Steps>
+  <Step title="Default Tweet Tokenization">
+    ```typescript
+    import { tweetTokenizeSubset } from "bun_nltk";
+
+    const tweet = "@user Check this out! #awesome https://example.com";
+    const tokens = tweetTokenizeSubset(tweet);
+    console.log(tokens);
+    // ["@user", "Check", "this", "out", "!", "#awesome", "https://example.com"]
+    ```
+  </Step>
+
+  <Step title="Strip Mentions">
+    ```typescript
+    const tweet = "@alice @bob Hello everyone!";
+    const tokens = tweetTokenizeSubset(tweet, { 
+      stripHandles: true 
+    });
+    console.log(tokens);
+    // ["Hello", "everyone", "!"]
+    ```
+  </Step>
+
+  <Step title="Reduce Character Repetition">
+    ```typescript
+    const tweet = "Sooooo cooool!!!";
+    const tokens = tweetTokenizeSubset(tweet, { 
+      reduceLen: true 
+    });
+    console.log(tokens);
+    // ["Sooo", "coool", "!!!"]
+    // Note: Reduces to maximum 3 repetitions for alphabetic characters
+    ```
+  </Step>
+
+  <Step title="Match Phone Numbers">
+    ```typescript
+    const text = "Call me at 555-123-4567";
+    const tokens = tweetTokenizeSubset(text, { 
+      matchPhoneNumbers: true 
+    });
+    console.log(tokens);
+    // ["Call", "me", "at", "555-123-4567"]
+    ```
+  </Step>
+
+  <Step title="Emoji Support">
+    ```typescript
+    const tweet = "Great news! 🎉🎊 #celebration";
+    const tokens = tweetTokenizeSubset(tweet);
+    console.log(tokens);
+    // ["Great", "news", "!", "🎉", "🎊", "#celebration"]
+    ```
+  </Step>
+</Steps>
+
+## Pattern Matching
+
+**Tweet Tokenizer Patterns:**
+- **URLs:** `https?://\S+`
+- **Hashtags:** `#[\w_]+`
+- **Mentions:** `@[\w_]+`
+- **Words:** `[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?`
+- **Phone Numbers:** Various formats (when enabled)
+- **Emojis:** Full Unicode emoji sequences
+
+## Common Use Cases
+
+### Processing Social Media Data
+
+```typescript
+import { tweetTokenizeSubset } from "bun_nltk";
+
+const tweets = [
+  "Loving #bunjs! So fast ⚡",
+  "@team Check out this amazing library",
+  "Download now: https://bun.sh"
+];
+
+const processedTweets = tweets.map(tweet => 
+  tweetTokenizeSubset(tweet, { stripHandles: true })
+);
+```
+
+### Handling Contractions
+
+```typescript
+import { wordTokenizeSubset } from "bun_nltk";
+
+const sentences = [
+  "I'm going to the store.",
+  "They've been waiting for hours.",
+  "It's a beautiful day."
+];
+
+const tokenized = sentences.map(wordTokenizeSubset);
+```
+
+### High-Performance Batch Processing
+
+```typescript
+import { tokenizeAsciiNative } from "bun_nltk";
+
+const documents = [
+  "First document text",
+  "Second document text",
+  // ... thousands more
+];
+
+// Fastest option for ASCII text
+const allTokens = documents.map(tokenizeAsciiNative);
+```
+
+## Performance Comparison
+
+- **tokenizeAsciiNative**: Fastest, uses SIMD optimizations
+- **wordTokenizeSubset**: Moderate speed, handles contractions
+- **tweetTokenizeSubset**: Slower but feature-rich for social media
+
+<Tip>
+  Use `tokenizeAsciiNative` when you need maximum speed and don't require special handling of contractions or social media features.
+</Tip>
+
+<Note>
+  All tokenizers automatically handle edge cases like multiple spaces, punctuation, and empty strings.
+</Note>

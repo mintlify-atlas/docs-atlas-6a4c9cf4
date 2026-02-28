@@ -1,0 +1,92 @@
+---
+title: 'Normalization'
+description: 'Token normalization functions for text preprocessing'
+---
+
+## normalizeTokens
+
+Normalizes tokens from text with optional stopword removal.
+
+<ParamField path="text" type="string" required>
+  Input text to tokenize and normalize
+</ParamField>
+
+<ParamField path="removeStopwords" type="boolean" default="true">
+  Whether to filter out common English stopwords
+</ParamField>
+
+<ResponseField name="return" type="string[]">
+  Array of normalized lowercase tokens
+</ResponseField>
+
+```typescript
+import { normalizeTokens } from 'bun_nltk';
+
+const text = "The quick brown fox jumps over the lazy dog";
+const tokens = normalizeTokens(text);
+// Returns: ["quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
+
+const withStopwords = normalizeTokens(text, false);
+// Returns: ["the", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog"]
+```
+
+## normalizeTokensAsciiNative
+
+High-performance native implementation for ASCII text normalization.
+
+<ParamField path="text" type="string" required>
+  ASCII input text to tokenize and normalize
+</ParamField>
+
+<ParamField path="removeStopwords" type="boolean" default="true">
+  Whether to filter out common English stopwords
+</ParamField>
+
+<ResponseField name="return" type="string[]">
+  Array of normalized lowercase tokens using SIMD-accelerated processing
+</ResponseField>
+
+```typescript
+import { normalizeTokensAsciiNative } from 'bun_nltk';
+
+const text = "Machine learning is transforming data science";
+const tokens = normalizeTokensAsciiNative(text);
+// Returns: ["machine", "learning", "transforming", "data", "science"]
+// (stopwords "is" removed by default)
+```
+
+<Note>
+  The native implementation provides significantly better performance for large texts using SIMD vectorization.
+</Note>
+
+## normalizeTokensUnicode
+
+Unicode-aware normalization supporting international text and diacritics.
+
+<ParamField path="text" type="string" required>
+  Unicode text to tokenize and normalize (supports all Unicode scripts)
+</ParamField>
+
+<ParamField path="removeStopwords" type="boolean" default="true">
+  Whether to filter out common English stopwords
+</ParamField>
+
+<ResponseField name="return" type="string[]">
+  Array of normalized tokens with NFKC normalization applied
+</ResponseField>
+
+```typescript
+import { normalizeTokensUnicode } from 'bun_nltk';
+
+const text = "Café résumé naïve coöperate";
+const tokens = normalizeTokensUnicode(text);
+// Returns: ["café", "résumé", "naïve", "coöperate"]
+
+const multilingual = "机器学习 and 深度学习";
+const tokens2 = normalizeTokensUnicode(multilingual);
+// Returns: ["机器学习", "深度学习"]
+```
+
+<Info>
+  Uses NFKC normalization to handle combining characters and compatibility variants.
+</Info>

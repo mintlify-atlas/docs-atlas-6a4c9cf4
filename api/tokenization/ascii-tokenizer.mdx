@@ -1,0 +1,52 @@
+---
+title: 'ASCII Tokenizer'
+description: 'Fast native tokenization for ASCII text'
+---
+
+## countTokensAscii
+
+Count the total number of tokens in ASCII text using SIMD-accelerated native implementation.
+
+<ParamField path="text" type="string" required>
+  The ASCII text to tokenize
+</ParamField>
+
+<ResponseField name="count" type="number">
+  Total number of tokens in the text
+</ResponseField>
+
+```typescript
+import { countTokensAscii } from 'bun_nltk';
+
+const text = "Hello world! This is a test.";
+const count = countTokensAscii(text);
+console.log(count); // 6
+```
+
+## tokenizeAsciiNative
+
+Tokenize ASCII text into an array of lowercase tokens using native implementation.
+
+<ParamField path="text" type="string" required>
+  The ASCII text to tokenize
+</ParamField>
+
+<ResponseField name="tokens" type="string[]">
+  Array of lowercase tokens extracted from the text
+</ResponseField>
+
+```typescript
+import { tokenizeAsciiNative } from 'bun_nltk';
+
+const text = "Hello World! How are you?";
+const tokens = tokenizeAsciiNative(text);
+console.log(tokens);
+// ["hello", "world", "how", "are", "you"]
+```
+
+### Notes
+
+- Tokens are automatically converted to lowercase
+- Uses SIMD vectorization for high performance
+- Optimized for ASCII text; may not handle Unicode correctly
+- Punctuation is typically filtered out during tokenization

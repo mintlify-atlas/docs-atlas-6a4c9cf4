@@ -1,0 +1,512 @@
+---
+title: Native vs WASM
+description: Comparing native FFI and WebAssembly runtimes - when to use each
+---
+
+## Runtime Comparison
+
+bun_nltk provides **two runtime options** for the same NLP algorithms:
+
+1. **Native runtime**: FFI bindings to platform-specific shared libraries
+2. **WASM runtime**: Universal WebAssembly binary
+
+Both expose **identical functionality** from the same Zig source code, but with different performance, compatibility, and deployment characteristics.
+
+## Quick Comparison
+
+| Aspect | Native Runtime | WASM Runtime |
+|--------|----------------|---------------|
+| **Performance** | Fastest (direct machine code) | Fast (near-native with JIT) |
+| **Platform support** | Linux x64, Windows x64 only | Universal (all platforms) |
+| **Browser support** | ❌ No | ✅ Yes |
+| **Binary size** | ~150-300 KB per platform | ~200 KB (universal) |
+| **Memory model** | Zero-copy input | Input copying required |
+| **Startup time** | Instant (dlopen) | Fast (~5-10ms init) |
+| **Thread safety** | Thread-local state | Single-threaded |
+| **Deployment** | Prebuilt binaries required | Single WASM file |
+
+## Performance Characteristics
+
+### Native Runtime Performance
+
+The native runtime offers **maximum performance** through direct machine code execution:
+
+**64MB Synthetic Dataset Benchmarks:**
+
+| Workload | Native (sec) | Python (sec) | Speedup |
+|----------|--------------|--------------|----------|
+| Token + unique + ngram + unique ngram | 2.767 | 10.071 | **3.64x** |
+| Top-K PMI collocations | 2.090 | 23.945 | **11.46x** |
+| Porter stemming | 11.942 | 120.101 | **10.06x** |
+| POS tagger | 19.880 | 82.849 | **4.17x** |
+| Streaming FreqDist | 3.206 | 20.971 | **6.54x** |
+
+**8MB Gate Dataset Benchmarks:**
+
+| Workload | Native (sec) | Python (sec) | Speedup |
+|----------|--------------|--------------|----------|
+| Punkt tokenizer | 0.0848 | 1.3463 | **15.87x** |
+| N-gram LM (Kneser-Ney) | 0.1324 | 2.8661 | **21.64x** |
+| Regexp chunk parser | 0.0024 | 1.5511 | **643x** |
+| WordNet lookup + morphy | 0.0009 | 0.0835 | **91.55x** |
+| Sparse linear logits | 0.0024 | 2.0001 | **840x** |
+| Earley parser | 0.1149 | 4.6483 | **40.47x** |
+
+### WASM Runtime Performance
+
+WASM performance is **close to native** for compute-heavy tasks:
+
+**Native vs WASM (64MB dataset):**
+
+| Workload | Native (sec) | WASM (sec) | WASM Overhead |
+|----------|--------------|------------|----------------|
+| Token/ngram counting | 1.719 | 4.150 | **2.4x slower** |
+
+**WASM vs Python (64MB dataset):**
+
+| Workload | WASM (sec) | Python (sec) | Speedup |
+|----------|------------|--------------|----------|
+| Token/ngram counting | 4.150 | 13.241 | **3.19x** |
+
+<Note>
+WASM is 2-3x slower than native due to memory copying and WebAssembly overhead, but still 3x faster than Python NLTK.
+</Note>
+
+### SIMD Performance
+
+The native runtime includes **SIMD-accelerated paths** (x86_64 only):
+
+**SIMD Benchmark Results:**
+
+| Operation | SIMD Speedup |
+|-----------|---------------|
+| `countTokensAscii` | **1.22x** vs scalar |
+| Normalization (no stopwords) | **2.73x** vs scalar |
+
+WASM runtime uses scalar fallback (WASM SIMD not yet implemented).
+
+## API Usage Comparison
+
+### Native Runtime API
+
+```typescript
+import { 
+  countTokensAscii,
+  tokenizeAsciiNative,
+  sentenceTokenizePunktAsciiNative,
+  porterStemAscii
+} from 'bun_nltk/src/native';
+
+// Direct function calls - no initialization needed
+const text = "This is a sample text. It has sentences.";
+
+const tokenCount = countTokensAscii(text);
+// => 8
+
+const tokens = tokenizeAsciiNative(text);
+// => ['this', 'is', 'a', 'sample', 'text', 'it', 'has', 'sentences']
+
+const sentences = sentenceTokenizePunktAsciiNative(text);
+// => ['This is a sample text.', 'It has sentences.']
+
+const stem = porterStemAscii('running');
+// => 'run'
+```
+
+### WASM Runtime API
+
+```typescript
+import { WasmNltk } from 'bun_nltk/src/wasm';
+
+// Initialization required
+const wasm = await WasmNltk.init();
+
+const text = "This is a sample text. It has sentences.";
+
+// Same functionality, class-based API
+const tokenCount = wasm.countTokensAscii(text);
+// => 8
+
+const tokens = wasm.tokenizeAscii(text);
+// => ['this', 'is', 'a', 'sample', 'text', 'it', 'has', 'sentences']
+
+const sentences = wasm.sentenceTokenizePunktAscii(text);
+// => ['This is a sample text.', 'It has sentences.']
+
+// Cleanup when done
+wasm.dispose();
+```
+
+<Info>
+The WASM API uses a **memory pool** that persists across calls. Call `dispose()` to free resources when finished.
+</Info>
+
+## When to Use Native Runtime
+
+### ✅ Use Native When:
+
+1. **Maximum performance is critical**
+   - Processing large corpora (>100MB)
+   - Real-time NLP pipelines
+   - Batch processing workloads
+
+2. **Running on supported platforms**
+   - Linux x64 servers
+   - Windows x64 development machines
+   - CI/CD environments with prebuilt binary support
+
+3. **Node.js/Bun server applications**
+   - Backend APIs
+   - ETL pipelines
+   - Data processing scripts
+
+4. **SIMD acceleration available**
+   - x86_64 processors (Intel/AMD)
+   - Workloads that benefit from vectorization
+
+### Example: High-Throughput Server
+
+```typescript
+import { 
+  tokenizeAsciiNative,
+  posTagAsciiNative,
+  sentenceTokenizePunktAsciiNative
+} from 'bun_nltk/src/native';
+
+// Express/Fastify/Bun route handler
+app.post('/analyze', async (req, res) => {
+  const { text } = req.body;
+  
+  // Native runtime for maximum throughput
+  const sentences = sentenceTokenizePunktAsciiNative(text);
+  const tokens = tokenizeAsciiNative(text);
+  const posTags = posTagAsciiNative(text);
+  
+  res.json({ sentences, tokens, posTags });
+});
+```
+
+## When to Use WASM Runtime
+
+### ✅ Use WASM When:
+
+1. **Browser/edge deployment**
+   - Client-side NLP processing
+   - Cloudflare Workers
+   - Deno Deploy
+   - Browser extensions
+
+2. **Cross-platform compatibility required**
+   - Unsupported architectures (ARM, macOS ARM64)
+   - Multi-platform distribution
+   - Environments without native binary support
+
+3. **Sandboxed environments**
+   - Security-critical applications
+   - Untrusted code execution
+   - Serverless functions with limited FFI support
+
+4. **Small to medium datasets**
+   - Less than 10MB text processing
+   - Interactive user input analysis
+   - Real-time UI features
+
+### Example: Browser-Based Text Analysis
+
+```typescript
+import { WasmNltk } from 'bun_nltk/src/wasm';
+
+let nltkWasm: WasmNltk | null = null;
+
+// Initialize on page load
+async function initNLP() {
+  nltkWasm = await WasmNltk.init();
+  console.log('NLP ready!');
+}
+
+// Analyze user input
+function analyzeText(text: string) {
+  if (!nltkWasm) return;
+  
+  const sentences = nltkWasm.sentenceTokenizePunktAscii(text);
+  const tokens = nltkWasm.tokenizeAscii(text);
+  const metrics = nltkWasm.computeAsciiMetrics(text, 2);
+  
+  return { sentences, tokens, metrics };
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  nltkWasm?.dispose();
+});
+```
+
+### Example: Cloudflare Worker
+
+```typescript
+import { WasmNltk } from 'bun_nltk/src/wasm';
+
+export default {
+  async fetch(request: Request): Promise<Response> {
+    const wasm = await WasmNltk.init();
+    
+    const { text } = await request.json();
+    const tokens = wasm.tokenizeAscii(text);
+    const count = wasm.countTokensAscii(text);
+    
+    wasm.dispose();
+    
+    return new Response(JSON.stringify({ tokens, count }));
+  },
+};
+```
+
+## Memory Usage Patterns
+
+### Native Runtime Memory Model
+
+**Zero-copy input processing:**
+
+```typescript
+const text = "large corpus text...";
+const bytes = new TextEncoder().encode(text);
+
+// Zig receives pointer to bytes.buffer - no copy
+const count = lib.symbols.bunnltk_count_tokens_ascii(
+  ptr(bytes),
+  bytes.length
+);
+```
+
+**Pre-allocated output buffers:**
+
+```typescript
+// JavaScript allocates output arrays
+const capacity = 10000;
+const offsets = new Uint32Array(capacity);
+const lengths = new Uint32Array(capacity);
+
+// Zig fills pre-allocated buffers
+lib.symbols.bunnltk_fill_token_offsets_ascii(
+  ptr(bytes),
+  bytes.length,
+  ptr(offsets),
+  ptr(lengths),
+  capacity
+);
+```
+
+### WASM Runtime Memory Model
+
+**Memory pool reuse:**
+
+```typescript:src/wasm.ts
+private ensureBlock(key: string, bytes: number): PoolBlock {
+  const existing = this.blocks.get(key);
+  if (existing && existing.bytes >= bytes) return existing;
+  
+  // Allocate new block if needed
+  const ptr = this.exports.bunnltk_wasm_alloc(bytes);
+  const block = { ptr, bytes };
+  this.blocks.set(key, block);
+  return block;
+}
+```
+
+The WASM runtime **reuses memory blocks** across calls to minimize allocation overhead:
+
+```typescript
+// First call allocates
+wasm.tokenizeAscii("short text");
+
+// Second call reuses same memory
+wasm.tokenizeAscii("another short text");
+
+// Larger input triggers reallocation
+wasm.tokenizeAscii("much longer text...");
+```
+
+## Platform Support Matrix
+
+### Native Runtime Support
+
+| Platform | Architecture | Status | Binary Location |
+|----------|--------------|--------|------------------|
+| Linux | x64 | ✅ Supported | `native/prebuilt/linux-x64/bun_nltk.so` |
+| Windows | x64 | ✅ Supported | `native/prebuilt/win32-x64/bun_nltk.dll` |
+| macOS | x64 | ❌ Build manually | Set `BUN_NLTK_NATIVE_LIB` |
+| macOS | ARM64 | ❌ Build manually | Set `BUN_NLTK_NATIVE_LIB` |
+| Linux | ARM64 | ❌ Build manually | Set `BUN_NLTK_NATIVE_LIB` |
+
+**Custom build for unsupported platforms:**
+
+```bash
+# Build native library
+bun run build:zig
+
+# Set environment variable
+export BUN_NLTK_NATIVE_LIB=/path/to/custom/bun_nltk.so
+
+# Use normally
+node your-script.js
+```
+
+### WASM Runtime Support
+
+| Environment | Status | Notes |
+|-------------|--------|-------|
+| Node.js 16+ | ✅ Supported | Native `WebAssembly` API |
+| Bun 1.0+ | ✅ Supported | Native `WebAssembly` API |
+| Deno 1.0+ | ✅ Supported | Native `WebAssembly` API |
+| Chrome/Edge | ✅ Supported | Tested in CI |
+| Firefox | ✅ Supported | Tested in CI |
+| Safari | ✅ Supported | Should work (not CI-tested) |
+| Cloudflare Workers | ✅ Supported | WASM runtime available |
+
+## Browser WASM Example
+
+Complete browser integration:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>NLP in Browser</title>
+</head>
+<body>
+  <textarea id="input" rows="10" cols="50"></textarea>
+  <button id="analyze">Analyze</button>
+  <div id="output"></div>
+
+  <script type="module">
+    import { WasmNltk } from './node_modules/bun_nltk/src/wasm.ts';
+    
+    let nltk;
+    
+    async function init() {
+      nltk = await WasmNltk.init();
+      console.log('NLTK loaded!');
+    }
+    
+    document.getElementById('analyze').addEventListener('click', () => {
+      const text = document.getElementById('input').value;
+      
+      const sentences = nltk.sentenceTokenizePunktAscii(text);
+      const tokens = nltk.tokenizeAscii(text);
+      const metrics = nltk.computeAsciiMetrics(text, 2);
+      
+      document.getElementById('output').innerHTML = `
+        <h3>Results:</h3>
+        <p>Sentences: ${sentences.length}</p>
+        <p>Tokens: ${metrics.tokens}</p>
+        <p>Unique tokens: ${metrics.uniqueTokens}</p>
+        <p>Bigrams: ${metrics.ngrams}</p>
+        <p>Unique bigrams: ${metrics.uniqueNgrams}</p>
+      `;
+    });
+    
+    init();
+  </script>
+</body>
+</html>
+```
+
+## Migration Guide
+
+### Switching from Native to WASM
+
+```typescript
+// Before (Native)
+import { countTokensAscii } from 'bun_nltk/src/native';
+const count = countTokensAscii(text);
+
+// After (WASM)
+import { WasmNltk } from 'bun_nltk/src/wasm';
+const wasm = await WasmNltk.init();
+const count = wasm.countTokensAscii(text);
+wasm.dispose(); // Remember cleanup
+```
+
+### Switching from WASM to Native
+
+```typescript
+// Before (WASM)
+import { WasmNltk } from 'bun_nltk/src/wasm';
+const wasm = await WasmNltk.init();
+const tokens = wasm.tokenizeAscii(text);
+wasm.dispose();
+
+// After (Native)
+import { tokenizeAsciiNative } from 'bun_nltk/src/native';
+const tokens = tokenizeAsciiNative(text); // No init/cleanup
+```
+
+## Performance Tuning Tips
+
+### Native Runtime Optimization
+
+1. **Batch operations**: Avoid repeated FFI calls
+   ```typescript
+   // ❌ Slow: Multiple FFI calls
+   const stems = tokens.map(t => porterStemAscii(t));
+   
+   // ✅ Fast: Single batch call
+   const stems = porterStemAsciiTokens(tokens);
+   ```
+
+2. **Reuse allocations**: Pre-size output buffers
+   ```typescript
+   const capacity = countTokensAscii(text);
+   const offsets = new Uint32Array(capacity); // Exact size
+   ```
+
+3. **Use native metrics**: Get multiple counts in one call
+   ```typescript
+   // ✅ Single FFI call for 4 metrics
+   const metrics = computeAsciiMetrics(text, 2);
+   ```
+
+### WASM Runtime Optimization
+
+1. **Initialize once**: Reuse `WasmNltk` instance
+   ```typescript
+   const wasm = await WasmNltk.init();
+   // Use for multiple operations
+   wasm.dispose(); // Only at end
+   ```
+
+2. **Smaller batches**: WASM has memory limits
+   ```typescript
+   // Process in chunks if text > 10MB
+   const chunkSize = 1024 * 1024; // 1MB
+   for (let i = 0; i < text.length; i += chunkSize) {
+     const chunk = text.slice(i, i + chunkSize);
+     const result = wasm.tokenizeAscii(chunk);
+   }
+   ```
+
+3. **Custom WASM path**: Optimize loading
+   ```typescript
+   const wasm = await WasmNltk.init({
+     wasmPath: '/static/bun_nltk.wasm' // CDN or local
+   });
+   ```
+
+## Recommendation Summary
+
+<Note>
+**Default recommendation**: Use **native runtime** for Node.js/Bun server applications, and **WASM runtime** for browsers and edge deployments.
+</Note>
+
+**Choose Native if:**
+- You need maximum performance (>3x faster than WASM)
+- You're on Linux x64 or Windows x64
+- You're processing large datasets (>10MB)
+- You want SIMD acceleration
+
+**Choose WASM if:**
+- You need browser support
+- You need cross-platform compatibility
+- You're on an unsupported architecture
+- You're in a sandboxed environment (Cloudflare Workers, etc.)
+- Your datasets are small (less than 10MB)

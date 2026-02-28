@@ -1,0 +1,229 @@
+---
+title: 'Collocations'
+description: 'Discover statistically significant word pairs and associations using PMI'
+---
+
+## topPmiBigramsAscii
+
+Finds the top-K bigrams with highest Pointwise Mutual Information (PMI) scores.
+
+<ParamField path="text" type="string" required>
+  Input text to analyze for collocations
+</ParamField>
+
+<ParamField path="topK" type="number" required>
+  Number of top bigrams to return (must be positive integer)
+</ParamField>
+
+<ParamField path="windowSize" type="number" default="2">
+  Context window size for co-occurrence (must be integer >= 2)
+</ParamField>
+
+<ResponseField name="return" type="PmiBigram[]">
+  Array of bigrams sorted by PMI score (highest first)
+</ResponseField>
+
+<ResponseField name="PmiBigram.leftHash" type="bigint">
+  Hash of the left token
+</ResponseField>
+
+<ResponseField name="PmiBigram.rightHash" type="bigint">
+  Hash of the right token
+</ResponseField>
+
+<ResponseField name="PmiBigram.score" type="number">
+  PMI score (higher = stronger association)
+</ResponseField>
+
+```typescript
+import { topPmiBigramsAscii, hashTokenAscii } from 'bun_nltk';
+
+const text = `
+  Machine learning and deep learning are subfields of artificial intelligence.
+  Machine learning uses statistical learning to enable machines to learn.
+  Deep learning uses neural networks for learning patterns.
+`;
+
+const topBigrams = topPmiBigramsAscii(text, 5);
+// Returns top 5 bigrams by PMI score:
+// [
+//   { leftHash: 123456n, rightHash: 789012n, score: 4.32 },
+//   { leftHash: 345678n, rightHash: 901234n, score: 3.87 },
+//   ...
+// ]
+
+// To decode hashes back to words, compare with token hashes:
+const mlHash = hashTokenAscii("machine");
+const learningHash = hashTokenAscii("learning");
+
+// Check if a bigram matches "machine learning"
+const hasMachineLearning = topBigrams.some(
+  bg => bg.leftHash === mlHash && bg.rightHash === learningHash
+);
+```
+
+<Info>
+  PMI measures how much more often two words appear together than would be expected by chance. Higher scores indicate stronger collocations.
+</Info>
+
+## bigramWindowStatsAscii
+
+Computes comprehensive statistics for all bigrams within a sliding window.
+
+<ParamField path="text" type="string" required>
+  Input text to analyze
+</ParamField>
+
+<ParamField path="windowSize" type="number" default="2">
+  Size of context window for co-occurrence (must be integer >= 2)
+</ParamField>
+
+<ResponseField name="return" type="BigramWindowStatToken[]">
+  Array of bigram statistics with decoded token strings
+</ResponseField>
+
+<ResponseField name="BigramWindowStatToken.left" type="string">
+  Left token string
+</ResponseField>
+
+<ResponseField name="BigramWindowStatToken.right" type="string">
+  Right token string
+</ResponseField>
+
+<ResponseField name="BigramWindowStatToken.leftId" type="number">
+  Vocabulary ID of left token
+</ResponseField>
+
+<ResponseField name="BigramWindowStatToken.rightId" type="number">
+  Vocabulary ID of right token
+</ResponseField>
+
+<ResponseField name="BigramWindowStatToken.count" type="number">
+  Number of times this bigram co-occurs within the window
+</ResponseField>
+
+<ResponseField name="BigramWindowStatToken.pmi" type="number">
+  Pointwise Mutual Information score
+</ResponseField>
+
+```typescript
+import { bigramWindowStatsAscii } from 'bun_nltk';
+
+const text = "natural language processing and natural language understanding";
+const stats = bigramWindowStatsAscii(text, 3);
+
+// Returns all bigram pairs within window of 3:
+// [
+//   { left: "natural", right: "language", leftId: 0, rightId: 1, count: 2, pmi: 2.17 },
+//   { left: "language", right: "processing", leftId: 1, rightId: 2, count: 1, pmi: 1.58 },
+//   { left: "natural", right: "processing", leftId: 0, rightId: 2, count: 1, pmi: 1.32 },
+//   ...
+// ]
+
+// Filter for high PMI collocations
+const strongCollocations = stats.filter(s => s.pmi > 2.0 && s.count >= 2);
+```
+
+## bigramWindowStatsAsciiIds
+
+Low-level version returning token IDs instead of strings (for performance).
+
+<ParamField path="text" type="string" required>
+  Input text to analyze
+</ParamField>
+
+<ParamField path="windowSize" type="number" default="2">
+  Size of context window (must be integer >= 2)
+</ParamField>
+
+<ResponseField name="return" type="BigramWindowStatId[]">
+  Array of bigram statistics using vocabulary IDs
+</ResponseField>
+
+<ResponseField name="BigramWindowStatId.leftId" type="number">
+  Vocabulary ID of left token
+</ResponseField>
+
+<ResponseField name="BigramWindowStatId.rightId" type="number">
+  Vocabulary ID of right token
+</ResponseField>
+
+<ResponseField name="BigramWindowStatId.count" type="number">
+  Co-occurrence count
+</ResponseField>
+
+<ResponseField name="BigramWindowStatId.pmi" type="number">
+  PMI score
+</ResponseField>
+
+```typescript
+import { bigramWindowStatsAsciiIds, tokenFreqDistIdsAscii } from 'bun_nltk';
+
+const text = "machine learning and deep learning";
+
+// Get token vocabulary
+const vocab = tokenFreqDistIdsAscii(text);
+// vocab.tokens: ["machine", "learning", "and", "deep"]
+// vocab.tokenToId: Map { "machine" => 0, "learning" => 1, ... }
+
+// Get bigram stats with IDs
+const stats = bigramWindowStatsAsciiIds(text, 3);
+// [
+//   { leftId: 0, rightId: 1, count: 1, pmi: 1.58 },  // machine -> learning
+//   { leftId: 1, rightId: 3, count: 1, pmi: 1.58 },  // learning -> deep
+//   ...
+// ]
+
+// Decode IDs to tokens
+for (const stat of stats) {
+  const leftToken = vocab.tokens[stat.leftId];
+  const rightToken = vocab.tokens[stat.rightId];
+  console.log(`${leftToken} + ${rightToken}: PMI=${stat.pmi.toFixed(2)}`);
+}
+```
+
+<Note>
+  Use the ID version when processing large texts or when you need to perform multiple analyses with the same vocabulary.
+</Note>
+
+### PMI Formula
+
+PMI is calculated as:
+
+```
+PMI(w1, w2) = log2( P(w1, w2) / (P(w1) * P(w2)) )
+```
+
+Where:
+- `P(w1, w2)` = probability of w1 and w2 co-occurring within window
+- `P(w1)` = probability of w1 appearing
+- `P(w2)` = probability of w2 appearing
+
+### Example: Finding Domain-Specific Phrases
+
+```typescript
+import { bigramWindowStatsAscii } from 'bun_nltk';
+
+const corpus = `
+  Convolutional neural networks excel at image recognition.
+  Recurrent neural networks process sequential data.
+  Neural networks require large training datasets.
+  Deep neural networks have multiple hidden layers.
+`;
+
+const stats = bigramWindowStatsAscii(corpus, 4);
+
+// Find phrases that appear multiple times with high PMI
+const phrases = stats
+  .filter(s => s.count >= 2 && s.pmi > 1.5)
+  .sort((a, b) => b.pmi - a.pmi)
+  .slice(0, 10);
+
+phrases.forEach(p => {
+  console.log(`"${p.left} ${p.right}": count=${p.count}, PMI=${p.pmi.toFixed(2)}`);
+});
+// Output:
+// "neural networks": count=4, PMI=3.17
+// "training datasets": count=2, PMI=2.58
+// ...
+```

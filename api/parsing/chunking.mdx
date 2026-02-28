@@ -1,0 +1,148 @@
+---
+title: Chunking
+description: Extract noun phrases and other chunk patterns from POS-tagged tokens
+---
+
+## regexpChunkParse
+
+Parse POS-tagged tokens into chunks using regular expression patterns.
+
+```typescript
+function regexpChunkParse(
+  tokens: TaggedToken[],
+  grammar: string
+): ChunkElement[]
+```
+
+### Parameters
+
+<ParamField path="tokens" type="TaggedToken[]" required>
+  Array of tokens with POS tags. Each token has:
+  - `token`: string - The word/token
+  - `tag`: string - POS tag (e.g., "NN", "VB", "JJ")
+</ParamField>
+
+<ParamField path="grammar" type="string" required>
+  Chunking grammar rules. Each rule follows the format:
+  ```
+  Label: {<TagPattern><Quantifier> ...}
+  ```
+  
+  **Tag Patterns:**
+  - `<NN.*>` - Matches any tag starting with NN (nouns)
+  - `<JJ>` - Matches exactly JJ (adjectives)
+  - `<VB|MD>` - Matches VB or MD (verbs or modals)
+  
+  **Quantifiers:**
+  - `?` - Zero or one occurrence
+  - `*` - Zero or more occurrences
+  - `+` - One or more occurrences
+  - (none) - Exactly one occurrence
+</ParamField>
+
+### Returns
+
+Array of chunk elements, where each element is either:
+- `TaggedToken` - Unchunked token with `token` and `tag`
+- `ChunkNode` - Chunked phrase with:
+  - `kind: "chunk"`
+  - `label`: string - Chunk type (e.g., "NP", "VP")
+  - `tokens`: TaggedToken[] - Tokens in the chunk
+
+### Example
+
+```typescript
+import { regexpChunkParse } from "bun_nltk";
+
+const tokens = [
+  { token: "The", tag: "DT" },
+  { token: "quick", tag: "JJ" },
+  { token: "brown", tag: "JJ" },
+  { token: "fox", tag: "NN" },
+  { token: "jumps", tag: "VBZ" },
+];
+
+const grammar = `
+NP: {<DT>?<JJ>*<NN.*>+}
+VP: {<VB.*>}
+`;
+
+const chunks = regexpChunkParse(tokens, grammar);
+// [
+//   { kind: "chunk", label: "NP", tokens: [{"The", "DT"}, {"quick", "JJ"}, {"brown", "JJ"}, {"fox", "NN"}] },
+//   { kind: "chunk", label: "VP", tokens: [{"jumps", "VBZ"}] }
+// ]
+```
+
+### Grammar Rules
+
+Define chunk patterns with labels and tag sequences:
+
+```
+# Noun phrases
+NP: {<DT>?<JJ>*<NN.*>+}
+
+# Verb phrases  
+VP: {<VB.*><RB>?}
+
+# Prepositional phrases
+PP: {<IN><DT>?<NN.*>+}
+```
+
+Comments start with `#`. Rules can span multiple lines.
+
+---
+
+## chunkTreeToIob
+
+Convert chunk tree structure to IOB (Inside-Outside-Begin) format.
+
+```typescript
+function chunkTreeToIob(tree: ChunkElement[]): IobRow[]
+```
+
+### Parameters
+
+<ParamField path="tree" type="ChunkElement[]" required>
+  Chunk tree from `regexpChunkParse`
+</ParamField>
+
+### Returns
+
+Array of IOB-tagged rows with:
+- `token`: string - The word/token
+- `tag`: string - POS tag
+- `iob`: string - IOB tag:
+  - `"O"` - Outside any chunk
+  - `"B-Label"` - Beginning of chunk with label
+  - `"I-Label"` - Inside chunk with label
+
+### Example
+
+```typescript
+import { regexpChunkParse, chunkTreeToIob } from "bun_nltk";
+
+const tokens = [
+  { token: "The", tag: "DT" },
+  { token: "dog", tag: "NN" },
+  { token: "runs", tag: "VBZ" },
+];
+
+const grammar = "NP: {<DT><NN>}";
+const chunks = regexpChunkParse(tokens, grammar);
+const iob = chunkTreeToIob(chunks);
+
+console.log(iob);
+// [
+//   { token: "The", tag: "DT", iob: "B-NP" },
+//   { token: "dog", tag: "NN", iob: "I-NP" },
+//   { token: "runs", tag: "VBZ", iob: "O" }
+// ]
+```
+
+### Use Cases
+
+- Training sequence labeling models
+- Named entity recognition data preparation
+- Chunk boundary detection
+- Converting between chunk representations

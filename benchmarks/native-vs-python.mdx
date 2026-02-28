@@ -1,0 +1,214 @@
+---
+title: Native vs Python Benchmarks
+description: Detailed performance comparison between bun_nltk Zig native and Python NLTK
+---
+
+## Overview
+
+All benchmarks compare bun_nltk's Zig native implementation against Python NLTK on identical datasets and workloads.
+
+## Core Operations (64MB Dataset)
+
+Benchmarks using `bench/datasets/synthetic.txt` on a 64MB synthetic text corpus.
+
+| Workload | Zig/Bun median sec | Python sec | Faster side | Speedup | Percent faster |
+|---|---:|---:|---|---:|---:|
+| Token + unique + ngram + unique ngram (`bench:compare`) | 2.767 | 10.071 | Zig native | 3.64x | 263.93% |
+| Top-K PMI collocations (`bench:compare:collocations`) | 2.090 | 23.945 | Zig native | 11.46x | 1045.90% |
+| Porter stemming (`bench:compare:porter`) | 11.942 | 120.101 | Zig native | 10.06x | 905.70% |
+| WASM token/ngram path (`bench:compare:wasm`) | 4.150 | 13.241 | Zig WASM | 3.19x | 219.06% |
+| Native vs Python in wasm suite (`bench:compare:wasm`) | 1.719 | 13.241 | Zig native | 7.70x | 670.48% |
+| Sentence tokenizer subset (`bench:compare:sentence`) | 1.680 | 16.580 | Zig/Bun subset | 9.87x | 886.70% |
+| Perceptron POS tagger (`bench:compare:tagger`) | 19.880 | 82.849 | Zig native | 4.17x | 316.75% |
+| Streaming FreqDist + ConditionalFreqDist (`bench:compare:freqdist`) | 3.206 | 20.971 | Zig native | 6.54x | 554.17% |
+
+### Key Takeaways
+
+**Collocation Detection** - 11.46x speedup
+- PMI-based bigram collocation scoring shows the largest performance gain
+- Windowed bigram statistics computed in native Zig with minimal allocations
+
+**Stemming** - 10.06x speedup
+- Porter stemmer implementation benefits from ASCII fast paths
+- Native string manipulation avoids Python interpreter overhead
+
+**Sentence Tokenization** - 9.87x speedup
+- Punkt-compatible subset with abbreviation learning
+- Native implementation with orthographic heuristics
+
+**Frequency Distributions** - 6.54x speedup
+- Streaming `FreqDist` and `ConditionalFreqDist` builders
+- Native hash tables with collision-free token ID mapping
+
+**POS Tagging** - 4.17x speedup
+- Averaged perceptron tagger with native inference
+- Batch prediction with feature vector precomputation
+
+**Core Token Operations** - 3.64x speedup
+- Combined token counting, unique tokens, n-grams, and unique n-grams
+- SIMD fast path for ASCII token counting (x86_64)
+
+## Extended Workloads (8MB Dataset)
+
+Specialized benchmarks using an 8MB gate dataset for more complex operations.
+
+| Workload | Zig/Bun median sec | Python sec | Faster side | Speedup | Percent faster |
+|---|---:|---:|---|---:|---:|
+| Punkt tokenizer default path (`bench:compare:punkt`) | 0.0848 | 1.3463 | Zig native | 15.87x | 1487.19% |
+| N-gram LM (Kneser-Ney) score+perplexity (`bench:compare:lm`) | 0.1324 | 2.8661 | Zig/Bun | 21.64x | 2064.19% |
+| Regexp chunk parser (`bench:compare:chunk`) | 0.0024 | 1.5511 | Zig/Bun | 643.08x | 64208.28% |
+| WordNet lookup + morphy workload (`bench:compare:wordnet`) | 0.0009 | 0.0835 | Zig/Bun | 91.55x | 9054.67% |
+| CFG chart parser subset (`bench:compare:parser`) | 0.0088 | 0.3292 | Zig/Bun | 37.51x | 3651.05% |
+| Naive Bayes text classifier (`bench:compare:classifier`) | 0.0081 | 0.0112 | Zig/Bun | 1.38x | 38.40% |
+| PCFG Viterbi chart parser (`bench:compare:pcfg`) | 0.0191 | 0.4153 | Zig/Bun | 21.80x | 2080.00% |
+| MaxEnt text classifier (`bench:compare:maxent`) | 0.0244 | 0.1824 | Zig/Bun | 7.46x | 646.00% |
+| Sparse linear logits hot loop (`bench:compare:linear`) | 0.0024 | 2.0001 | Zig native | 840.54x | 83954.04% |
+| Decision tree text classifier (`bench:compare:decision-tree`) | 0.0725 | 0.5720 | Zig/Bun | 7.89x | 688.55% |
+| Earley parser workload (`bench:compare:earley`) | 0.1149 | 4.6483 | Zig/Bun | 40.47x | 3947.07% |
+
+### Key Takeaways
+
+**Sparse Linear Scoring** - 840.54x speedup
+- Native Zig hot loop for sparse matrix operations
+- Critical for training linear models (Logistic, SVM)
+- Minimal allocations with pre-flattened sparse batches
+
+**Chunk Parser** - 643.08x speedup
+- Regexp-based IOB chunk tagging
+- Native compiled grammar matching
+- Native/WASM chunk IOB hot loop
+
+**WordNet Operations** - 91.55x speedup
+- Synset lookups with packed binary format
+- Native morphy inflection recovery
+- Relation traversal (hypernyms, hyponyms, antonyms)
+
+**Earley Parser** - 40.47x speedup
+- Recognition and parsing for arbitrary CFG grammars
+- Non-CNF grammar support
+- Chart-based parsing with native data structures
+
+**CFG Chart Parser** - 37.51x speedup
+- Bottom-up chart parsing
+- Native production rule matching
+- Parse tree reconstruction
+
+**PCFG Viterbi Parser** - 21.80x speedup
+- Probabilistic context-free grammar
+- Viterbi algorithm for best parse
+- Native probability computations
+
+**Language Models** - 21.64x speedup
+- Kneser-Ney interpolated smoothing
+- Native ID-based evaluation hot loop
+- Batch scoring and perplexity computation
+
+**Punkt Tokenizer** - 15.87x speedup
+- Full trainable Punkt model
+- Native sentence splitting fast path
+- Abbreviation and collocation handling
+
+**Decision Tree Classifier** - 7.89x speedup
+- Text classification with decision trees
+- Native tree traversal and splitting
+- N-gram feature extraction
+
+**MaxEnt Classifier** - 7.46x speedup
+- Maximum entropy text classification
+- Iterative parameter estimation
+- Native sparse feature scoring
+
+**Naive Bayes Classifier** - 1.38x speedup
+- Probabilistic text classification
+- Laplace smoothing
+- Modest speedup due to simpler algorithm
+
+## SIMD Fast Path Comparison
+
+Comparison of SIMD-accelerated paths vs scalar baseline:
+
+```bash
+bun run bench:compare:simd
+```
+
+**Results:**
+- `countTokensAscii`: 1.22x speedup (SIMD vs scalar)
+- Normalization (no stopwords): 2.73x speedup (fast path vs standard)
+
+**SIMD Optimization:**
+- x86_64 vectorized token counting
+- Scalar fallback for other architectures
+- Automatic runtime detection
+
+## Running Benchmarks
+
+### Single Workload
+
+```bash
+# Core operations
+bun run bench:compare
+
+# Collocations
+bun run bench:compare:collocations
+
+# Porter stemmer
+bun run bench:compare:porter
+
+# Sentence tokenizer
+bun run bench:compare:sentence
+
+# POS tagger
+bun run bench:compare:tagger
+
+# Streaming FreqDist
+bun run bench:compare:freqdist
+```
+
+### Extended Workloads
+
+```bash
+# Language models
+bun run bench:compare:lm
+
+# Parsers
+bun run bench:compare:parser
+bun run bench:compare:earley
+
+# Classifiers
+bun run bench:compare:classifier
+bun run bench:compare:decision-tree
+
+# WordNet
+bun run bench:compare:wordnet
+
+# Chunk parser
+bun run bench:compare:chunk
+
+# Sparse linear scorer
+bun run bench:compare:linear
+```
+
+## Performance Notes
+
+<Note>
+**Sentence Tokenizer**: This is a Punkt-compatible subset, not full Punkt parity on arbitrary corpora. The full Punkt tokenizer with trainable models shows 15.87x speedup in `bench:compare:punkt`.
+</Note>
+
+<Note>
+**WordNet**: Full WordNet corpus is not bundled by default. A mini WordNet dataset is included. Full corpus can be packed from upstream with `bun run wordnet:pack:official`.
+</Note>
+
+<Note>
+**SIMD**: Token counting uses x86_64 SIMD fast path with scalar fallback. Run `bench:compare:simd` to measure SIMD impact on your hardware.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="WASM Performance" icon="rocket" href="/benchmarks/wasm-performance">
+    Compare WASM vs native vs Python performance
+  </Card>
+  <Card title="Benchmark Overview" icon="chart-line" href="/benchmarks/overview">
+    Learn about benchmark methodology
+  </Card>
+</CardGroup>

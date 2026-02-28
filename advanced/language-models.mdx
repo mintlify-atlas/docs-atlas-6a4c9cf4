@@ -1,0 +1,221 @@
+---
+title: "Language Models"
+description: "Train and evaluate N-gram language models with MLE, Lidstone, and Kneser-Ney smoothing"
+---
+
+## Overview
+
+bun_nltk provides efficient N-gram language models for estimating word probabilities and evaluating text. The implementation supports multiple smoothing techniques and leverages native code for optimal performance.
+
+## Model Types
+
+### Maximum Likelihood Estimation (MLE)
+
+Basic probability estimation using raw frequency counts:
+
+```typescript
+import { trainNgramLanguageModel } from "bun_nltk";
+
+const sentences = [
+  ["the", "cat", "sat"],
+  ["the", "dog", "ran"],
+  ["the", "cat", "ran"]
+];
+
+const lm = trainNgramLanguageModel(sentences, {
+  order: 2,
+  model: "mle"
+});
+
+const prob = lm.score("cat", ["the"]);
+console.log(prob); // P(cat | the)
+```
+
+### Lidstone Smoothing
+
+Adds a constant gamma to all counts to handle unseen N-grams:
+
+```typescript
+const lm = trainNgramLanguageModel(sentences, {
+  order: 3,
+  model: "lidstone",
+  gamma: 0.1  // Default: 0.1
+});
+
+const prob = lm.score("unknown", ["the"]);
+```
+
+### Kneser-Ney Interpolation
+
+Sophisticated smoothing that considers continuation probabilities:
+
+```typescript
+const lm = trainNgramLanguageModel(sentences, {
+  order: 3,
+  model: "kneser_ney_interpolated",
+  discount: 0.75  // Default: 0.75
+});
+```
+
+## Training Options
+
+```typescript
+export type NgramLanguageModelOptions = {
+  order: number;           // N-gram size (1=unigram, 2=bigram, 3=trigram)
+  model?: LanguageModelType; // "mle" | "lidstone" | "kneser_ney_interpolated"
+  gamma?: number;          // Lidstone smoothing parameter (default: 0.1)
+  discount?: number;       // Kneser-Ney discount (default: 0.75)
+  padLeft?: boolean;       // Add start tokens (default: true)
+  padRight?: boolean;      // Add end tokens (default: true)
+  startToken?: string;     // Start symbol (default: "<s>")
+  endToken?: string;       // End symbol (default: "</s>")
+};
+```
+
+## Scoring and Evaluation
+
+### Probability Scoring
+
+```typescript
+const lm = trainNgramLanguageModel(sentences, {
+  order: 2,
+  model: "kneser_ney_interpolated"
+});
+
+// Get probability
+const prob = lm.score("cat", ["the"]);
+
+// Get log probability (base 2)
+const logProb = lm.logScore("cat", ["the"]);
+```
+
+### Perplexity Calculation
+
+Measure how well the model predicts a sequence:
+
+```typescript
+const testTokens = ["the", "cat", "sat"];
+const perplexity = lm.perplexity(testTokens);
+console.log(`Perplexity: ${perplexity.toFixed(2)}`);
+// Lower perplexity = better model
+```
+
+### Batch Evaluation
+
+Evaluate multiple probes efficiently using native code:
+
+```typescript
+const probes = [
+  { word: "cat", context: ["the"] },
+  { word: "dog", context: ["the"] },
+  { word: "ran", context: ["cat"] }
+];
+
+const testSequence = ["the", "cat", "sat"];
+
+const results = lm.evaluateBatch(probes, testSequence);
+console.log("Scores:", results.scores);
+console.log("Perplexity:", results.perplexity);
+```
+
+## Advanced Usage
+
+### Custom Padding
+
+```typescript
+const lm = trainNgramLanguageModel(sentences, {
+  order: 3,
+  padLeft: true,
+  padRight: true,
+  startToken: "<BOS>",
+  endToken: "<EOS>"
+});
+```
+
+### Accessing Model Properties
+
+```typescript
+console.log("Model order:", lm.order);
+console.log("Model type:", lm.model);
+console.log("Vocabulary:", lm.vocabulary);
+```
+
+### Working with Large Corpora
+
+```typescript
+import { loadBundledMiniCorpus } from "bun_nltk";
+
+const corpus = loadBundledMiniCorpus();
+const sentences = corpus.sents().map(sent => 
+  sent.toLowerCase().split(/\s+/)
+);
+
+const lm = trainNgramLanguageModel(sentences, {
+  order: 3,
+  model: "kneser_ney_interpolated"
+});
+```
+
+## Performance Optimization
+
+The implementation uses native code for:
+- N-gram counting and indexing (up to trigrams)
+- Batch probability evaluation
+- Perplexity calculation
+
+For orders ≤ 3, models automatically use optimized native paths:
+
+```typescript
+const lm = trainNgramLanguageModel(sentences, {
+  order: 3,  // Will use native optimization
+  model: "kneser_ney_interpolated"
+});
+
+// evaluateBatch automatically uses native code when available
+const results = lm.evaluateBatch(probes, testSequence);
+```
+
+## Example: Language Model Comparison
+
+```typescript
+import { trainNgramLanguageModel } from "bun_nltk";
+
+const trainSentences = [
+  ["the", "cat", "sat", "on", "the", "mat"],
+  ["the", "dog", "sat", "on", "the", "floor"],
+  ["a", "cat", "ran", "fast"]
+];
+
+const testSentence = ["the", "cat", "ran"];
+
+const models = ["mle", "lidstone", "kneser_ney_interpolated"] as const;
+
+for (const modelType of models) {
+  const lm = trainNgramLanguageModel(trainSentences, {
+    order: 2,
+    model: modelType
+  });
+  
+  const ppl = lm.perplexity(testSentence);
+  console.log(`${modelType}: perplexity = ${ppl.toFixed(2)}`);
+}
+```
+
+## API Reference
+
+### `trainNgramLanguageModel(sentences, options)`
+
+Creates and trains an N-gram language model.
+
+**Parameters:**
+- `sentences`: `string[][]` - Array of tokenized sentences
+- `options`: `NgramLanguageModelOptions` - Model configuration
+
+**Returns:** `NgramLanguageModel`
+
+### `NgramLanguageModel` Methods
+
+- **`score(word, context?)`** - Get probability P(word | context)
+- **`logScore(word, context?)`** - Get log₂ probability
+- **`perplexity(tokens)`** - Calculate perplexity on a sequence
+- **`evaluateBatch(probes, perplexityTokens)`** - Batch evaluation with native optimization

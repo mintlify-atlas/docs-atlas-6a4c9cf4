@@ -1,0 +1,338 @@
+---
+title: Architecture
+description: Understanding bun_nltk's hybrid Zig native + WASM architecture
+---
+
+## Overview
+
+bun_nltk is built on a **dual-runtime architecture** that combines the performance of native code with the portability of WebAssembly. The core NLP algorithms are implemented in **Zig**, a modern systems programming language, and exposed to JavaScript/TypeScript through two distinct paths:
+
+1. **Native FFI bindings** (via Bun's FFI) for maximum performance
+2. **WebAssembly runtime** for cross-platform compatibility and browser support
+
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  TypeScript/JavaScript API                  │
+│                      (index.ts)                             │
+└────────────────┬───────────────────────┬────────────────────┘
+                 │                       │
+                 │                       │
+      ┌──────────▼──────────┐  ┌─────────▼──────────┐
+      │   Native Runtime    │  │   WASM Runtime     │
+      │   (src/native.ts)   │  │   (src/wasm.ts)    │
+      └──────────┬──────────┘  └─────────┬──────────┘
+                 │                       │
+                 │                       │
+      ┌──────────▼──────────┐  ┌─────────▼──────────┐
+      │  Bun FFI (dlopen)   │  │  WebAssembly.      │
+      │                     │  │  instantiate       │
+      └──────────┬──────────┘  └─────────┬──────────┘
+                 │                       │
+                 │                       │
+      ┌──────────▼──────────┐  ┌─────────▼──────────┐
+      │  Native Binary      │  │   WASM Binary      │
+      │  (.so/.dll/.dylib)  │  │   (.wasm)          │
+      └──────────┬──────────┘  └─────────┬──────────┘
+                 │                       │
+                 └───────────┬───────────┘
+                             │
+                 ┌───────────▼────────────┐
+                 │   Zig Core Libraries   │
+                 │   (zig/src/core/)      │
+                 │                        │
+                 │  • ascii.zig           │
+                 │  • freqdist.zig        │
+                 │  • punkt.zig           │
+                 │  • porter.zig          │
+                 │  • perceptron.zig      │
+                 │  • lm.zig              │
+                 │  • chunk.zig           │
+                 │  • ...and more         │
+                 └────────────────────────┘
+```
+
+## Core Components
+
+### Zig Core Library
+
+The foundation of bun_nltk is a **single Zig codebase** (`zig/src/core/`) that implements all NLP algorithms:
+
+- **Token processing**: ASCII tokenization with SIMD acceleration (`ascii.zig`)
+- **Statistical analysis**: Frequency distributions, n-grams, collocations (`freqdist.zig`, `ngrams.zig`, `collocations.zig`)
+- **Text normalization**: Stopword removal, stemming (`normalize.zig`, `porter.zig`)
+- **Sentence segmentation**: Punkt sentence tokenizer (`punkt.zig`)
+- **POS tagging**: Perceptron-based tagger (`tagger.zig`, `perceptron.zig`)
+- **Language modeling**: MLE, Lidstone, Kneser-Ney models (`lm.zig`)
+- **Parsing**: Chunk parser, CFG parser, CYK recognition (`chunk.zig`, `cyk.zig`)
+- **Classification**: Naive Bayes, linear models (`naive_bayes.zig`, `linear.zig`)
+- **WordNet integration**: Morphy stemmer (`morphy.zig`)
+
+### FFI Exports (`ffi_exports.zig`)
+
+Exports native C-compatible functions for Bun's FFI layer:
+
+```zig
+export fn bunnltk_count_tokens_ascii(input_ptr: [*]const u8, input_len: usize) u64
+export fn bunnltk_fill_token_offsets_ascii(...) u64
+export fn bunnltk_porter_stem_ascii(...) u32
+// ... 50+ more exports
+```
+
+These functions are loaded via `dlopen` in `src/native.ts`:
+
+```typescript
+const lib = dlopen(nativeLibPath, {
+  bunnltk_count_tokens_ascii: {
+    args: ["ptr", "usize"],
+    returns: "u64",
+  },
+  // ... more function signatures
+});
+```
+
+### WASM Exports (`wasm_exports.zig`)
+
+Exports the same core algorithms for WebAssembly with a different memory model:
+
+```zig
+export fn bunnltk_wasm_count_tokens_ascii(input_len: u32) u64
+export fn bunnltk_wasm_alloc(size: usize) usize
+export fn bunnltk_wasm_free(ptr: usize, size: usize) void
+```
+
+The WASM runtime manages its own memory pool for efficient buffer reuse (`WasmNltk` class in `src/wasm.ts`).
+
+## Binary Distribution
+
+### Prebuilt Native Binaries
+
+The npm package ships with **prebuilt native binaries** for common platforms:
+
+- **Linux x64**: `native/prebuilt/linux-x64/bun_nltk.so`
+- **Windows x64**: `native/prebuilt/win32-x64/bun_nltk.dll`
+
+These are loaded automatically based on `process.platform` and `process.arch`:
+
+```typescript:src/native.ts
+const ext = process.platform === "win32" ? "dll" 
+  : process.platform === "darwin" ? "dylib" 
+  : "so";
+
+const prebuiltLibPath = resolve(
+  import.meta.dir,
+  "..",
+  "native",
+  "prebuilt",
+  `${process.platform}-${process.arch}`,
+  `bun_nltk.${ext}`,
+);
+```
+
+<Info>
+Prebuilt binaries are **required** for native runtime. There is **no install-time compilation** - the library uses prebuilt binaries only. For unsupported platforms, set `BUN_NLTK_NATIVE_LIB` to a custom build path.
+</Info>
+
+### WASM Binary
+
+A single **universal WASM binary** is included:
+
+- **Location**: `native/bun_nltk.wasm`
+- **Size**: Optimized for browser/runtime usage (size-gated in CI)
+- **Compatibility**: Works in Node.js, Bun, Deno, browsers
+
+## Build Process
+
+### Native Build
+
+```bash
+bun run build:zig
+```
+
+Compiles Zig source to a native shared library using:
+
+```bash
+zig build-lib -dynamic -O ReleaseFast \
+  zig/src/lib.zig \
+  -femit-bin=native/bun_nltk.so
+```
+
+### WASM Build
+
+```bash
+bun run build:wasm
+```
+
+Compiles Zig to WebAssembly:
+
+```bash
+zig build-lib -target wasm32-freestanding -O ReleaseSmall \
+  zig/src/wasm_exports.zig \
+  -femit-bin=native/bun_nltk.wasm
+```
+
+<Note>
+WASM uses `-O ReleaseSmall` for size optimization, while native uses `-O ReleaseFast` for maximum performance.
+</Note>
+
+## Why Zig?
+
+bun_nltk uses Zig as its implementation language for several key reasons:
+
+### 1. Dual-Target Compilation
+
+Zig can compile the **same source code** to both native binaries and WebAssembly without platform-specific code:
+
+```zig
+// Same code works for both FFI and WASM targets
+pub fn tokenCountAscii(input: []const u8) u64 {
+    // ... implementation
+}
+```
+
+### 2. Manual Memory Management
+
+Zig gives explicit control over memory allocation, crucial for:
+- Zero-copy string processing
+- Arena allocators for temporary data
+- Predictable performance characteristics
+
+### 3. SIMD Support
+
+Zig's `@Vector` builtin enables portable SIMD code:
+
+```zig
+if (builtin.cpu.arch == .x86_64) {
+    return tokenCountAsciiSimd16(input);
+}
+return tokenCountAsciiScalar(input);
+```
+
+The SIMD path provides **1.22x** speedup for token counting on x86_64.
+
+### 4. C ABI Compatibility
+
+Zig's `export` keyword generates C-compatible functions for FFI:
+
+```zig
+export fn bunnltk_count_tokens_ascii(
+    input_ptr: [*]const u8,
+    input_len: usize
+) u64 {
+    return ascii.tokenCountAscii(input_ptr[0..input_len]);
+}
+```
+
+### 5. Performance
+
+Zig compiles to efficient machine code with:
+- No garbage collection overhead
+- Inline function calls
+- Loop unrolling and vectorization
+- Direct memory access
+
+Results: **3.64x to 840x** faster than Python NLTK (see [Performance](/concepts/performance)).
+
+### 6. Safety
+
+Zig provides:
+- Bounds-checked array access (in Debug mode)
+- Explicit error handling
+- No undefined behavior (when using safe mode)
+- Clear distinction between pointers and slices
+
+## Error Handling
+
+Both runtimes use a **thread-local error code** pattern:
+
+```zig:zig/src/core/error_state.zig
+threadlocal var last_error: u32 = 0;
+
+pub fn setError(code: u32) void {
+    last_error = code;
+}
+```
+
+TypeScript wrappers check for errors after FFI/WASM calls:
+
+```typescript:src/native.ts
+function assertNoNativeError(context: string): void {
+  const code = lastError();
+  if (code !== 0) {
+    throw new Error(`native error code ${code} in ${context}`);
+  }
+}
+```
+
+## Memory Model Differences
+
+### Native FFI
+
+- **JavaScript owns input buffers**: TypeScript creates `Uint8Array`, passes pointer via `ptr()`
+- **Zig allocates output buffers**: JavaScript pre-allocates typed arrays for results
+- **No copying on input**: Direct pointer access to V8 memory
+
+```typescript:src/native.ts
+const bytes = toBuffer(text); // TextEncoder
+const value = lib.symbols.bunnltk_count_tokens_ascii(
+  ptr(bytes),  // Direct pointer to bytes.buffer
+  bytes.length
+);
+```
+
+### WASM Runtime
+
+- **WASM owns linear memory**: All data lives in `WebAssembly.Memory`
+- **Copy input to WASM**: JavaScript writes to WASM memory buffer
+- **Memory pool reuse**: `WasmNltk` class maintains allocated blocks
+
+```typescript:src/wasm.ts
+private writeInput(text: string): number {
+  const encoded = this.encoder.encode(text);
+  const mem = new Uint8Array(this.exports.memory.buffer);
+  mem.set(encoded, this.inputPtr); // Copy to WASM memory
+  return encoded.length;
+}
+```
+
+## Package Structure
+
+```
+bun_nltk/
+├── index.ts              # Main entry point
+├── src/
+│   ├── native.ts         # FFI runtime wrapper
+│   ├── wasm.ts           # WASM runtime wrapper
+│   └── ...               # High-level TypeScript APIs
+├── zig/
+│   └── src/
+│       ├── lib.zig       # Native entry point
+│       ├── wasm_exports.zig  # WASM entry point
+│       ├── ffi_exports.zig   # FFI exports
+│       └── core/         # Shared algorithm implementations
+├── native/
+│   ├── prebuilt/
+│   │   ├── linux-x64/bun_nltk.so
+│   │   └── win32-x64/bun_nltk.dll
+│   └── bun_nltk.wasm
+├── models/               # Trained model files
+├── corpora/              # Bundled corpora
+└── package.json
+```
+
+## Runtime Selection
+
+Applications explicitly choose their runtime:
+
+```typescript
+// Native runtime (default for Node/Bun)
+import { countTokensAscii } from 'bun_nltk/src/native';
+
+// WASM runtime (for browsers or cross-platform)
+import { WasmNltk } from 'bun_nltk/src/wasm';
+const wasm = await WasmNltk.init();
+const count = wasm.countTokensAscii(text);
+```
+
+See [Native vs WASM](/concepts/native-vs-wasm) for detailed comparison and selection guidance.
