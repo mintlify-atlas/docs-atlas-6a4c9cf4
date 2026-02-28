@@ -1,0 +1,241 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "bun_nltk",
+  "projectDescription": "High-performance NLP primitives for Bun/Node with Zig native and WASM backends",
+  "theme": "aspen",
+  "primaryColor": "#10b981",
+  "lightColor": "#34d399",
+  "darkColor": "#059669",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/native-vs-wasm",
+              "concepts/performance"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/tokenization",
+              "guides/sentence-splitting",
+              "guides/pos-tagging",
+              "guides/stemming",
+              "guides/normalization"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "advanced/language-models",
+              "advanced/chunking",
+              "advanced/parsing",
+              "advanced/classification",
+              "advanced/wordnet",
+              "advanced/corpus-readers"
+            ]
+          },
+          {
+            "group": "WASM & Browser",
+            "pages": [
+              "wasm/browser-usage",
+              "wasm/runtime-api"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Tokenization",
+            "pages": [
+              "api/tokenization/ascii-tokenizer",
+              "api/tokenization/word-tokenize",
+              "api/tokenization/sentence-tokenize",
+              "api/tokenization/punkt"
+            ]
+          },
+          {
+            "group": "Text Processing",
+            "pages": [
+              "api/processing/normalization",
+              "api/processing/stemming",
+              "api/processing/ngrams",
+              "api/processing/collocations"
+            ]
+          },
+          {
+            "group": "Tagging & Analysis",
+            "pages": [
+              "api/tagging/pos-tagging",
+              "api/tagging/perceptron-tagger",
+              "api/tagging/frequency-distributions"
+            ]
+          },
+          {
+            "group": "Language Models",
+            "pages": [
+              "api/lm/ngram-models",
+              "api/lm/training",
+              "api/lm/evaluation"
+            ]
+          },
+          {
+            "group": "Parsing",
+            "pages": [
+              "api/parsing/chunking",
+              "api/parsing/cfg-parser",
+              "api/parsing/earley-parser",
+              "api/parsing/dependency-parser",
+              "api/parsing/pcfg-parser"
+            ]
+          },
+          {
+            "group": "Classification",
+            "pages": [
+              "api/classification/naive-bayes",
+              "api/classification/decision-tree",
+              "api/classification/linear-models",
+              "api/classification/maxent",
+              "api/classification/features"
+            ]
+          },
+          {
+            "group": "WordNet",
+            "pages": [
+              "api/wordnet/loading",
+              "api/wordnet/synsets",
+              "api/wordnet/relations",
+              "api/wordnet/morphy"
+            ]
+          },
+          {
+            "group": "Corpus",
+            "pages": [
+              "api/corpus/corpus-reader",
+              "api/corpus/bundled-corpora",
+              "api/corpus/registry"
+            ]
+          },
+          {
+            "group": "WASM Runtime",
+            "pages": [
+              "api/wasm/initialization",
+              "api/wasm/methods"
+            ]
+          },
+          {
+            "group": "Native APIs",
+            "pages": [
+              "api/native/overview",
+              "api/native/performance-apis"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Benchmarks",
+            "pages": [
+              "benchmarks/overview",
+              "benchmarks/native-vs-python",
+              "benchmarks/wasm-performance"
+            ]
+          },
+          {
+            "group": "Migration",
+            "pages": [
+              "migration/from-nltk"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/versioning",
+              "reference/changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "High-performance Zig native tokenization and text processing",
+    "WASM runtime for browser and cross-platform usage",
+    "Comprehensive NLP primitives (tokenization, POS tagging, parsing, classification)",
+    "Language models with multiple smoothing strategies",
+    "WordNet integration with morphy inflection recovery",
+    "Text classification with multiple algorithms (Naive Bayes, Decision Trees, Linear models)",
+    "CFG, PCFG, and Earley parsers",
+    "Corpus readers and registry system"
+  ],
+  "publicApiSurface": [
+    "countTokensAscii",
+    "tokenizeAsciiNative",
+    "wordTokenizeSubset",
+    "tweetTokenizeSubset",
+    "sentenceTokenizeSubset",
+    "sentenceTokenizePunkt",
+    "trainPunktModel",
+    "ngramsAsciiNative",
+    "everygramsAsciiNative",
+    "skipgramsAsciiNative",
+    "topPmiBigramsAscii",
+    "porterStemAscii",
+    "normalizeTokens",
+    "posTagAsciiNative",
+    "posTagPerceptronAscii",
+    "loadPerceptronTaggerModel",
+    "NgramLanguageModel",
+    "trainNgramLanguageModel",
+    "regexpChunkParse",
+    "chunkTreeToIob",
+    "parseCfgGrammar",
+    "chartParse",
+    "earleyParse",
+    "earleyRecognize",
+    "parseTextWithCfg",
+    "parseTextWithEarley",
+    "parseTextWithPcfg",
+    "probabilisticChartParse",
+    "dependencyParse",
+    "dependencyParseText",
+    "NaiveBayesTextClassifier",
+    "trainNaiveBayesTextClassifier",
+    "DecisionTreeTextClassifier",
+    "trainDecisionTreeTextClassifier",
+    "LogisticTextClassifier",
+    "LinearSvmTextClassifier",
+    "MaxEntTextClassifier",
+    "TextFeatureVectorizer",
+    "loadWordNetMini",
+    "loadWordNetExtended",
+    "loadWordNetPacked",
+    "WordNet",
+    "CorpusReader",
+    "loadBundledMiniCorpus",
+    "loadCorpusRegistryManifest",
+    "downloadCorpusRegistry",
+    "parseConllTagged",
+    "parseBrownTagged",
+    "parseConllChunked",
+    "WasmNltk",
+    "NativeFreqDistStream"
+  ]
+}
