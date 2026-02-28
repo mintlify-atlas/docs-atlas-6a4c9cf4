@@ -27,7 +27,7 @@ function loadBundledMiniCorpus(rootPath?: string): CorpusReader
 ### Example: Default Mini Corpus
 
 ```typescript
-import { loadBundledMiniCorpus } from "bun_nltk/corpus";
+import { loadBundledMiniCorpus } from "bun_nltk";
 
 const corpus = loadBundledMiniCorpus();
 
@@ -42,7 +42,7 @@ console.log(`Loaded ${words.length} words from ${categories.length} categories`)
 ### Example: Custom Corpus Path
 
 ```typescript
-import { loadBundledMiniCorpus } from "bun_nltk/corpus";
+import { loadBundledMiniCorpus } from "bun_nltk";
 
 // Load from a custom directory
 const customCorpus = loadBundledMiniCorpus("/path/to/custom/corpus");
@@ -69,7 +69,7 @@ function loadCorpusBundleFromIndex(indexPath: string): CorpusReader
 ### Example: Load Custom Index
 
 ```typescript
-import { loadCorpusBundleFromIndex } from "bun_nltk/corpus";
+import { loadCorpusBundleFromIndex } from "bun_nltk";
 
 const corpus = loadCorpusBundleFromIndex("./my-corpus/index.json");
 
@@ -80,7 +80,7 @@ console.log(`Found ${newsWords.length} words in news category`);
 ### Example: Filtering by Category
 
 ```typescript
-import { loadCorpusBundleFromIndex } from "bun_nltk/corpus";
+import { loadCorpusBundleFromIndex } from "bun_nltk";
 
 const corpus = loadCorpusBundleFromIndex("./corpora/brown/index.json");
 
@@ -154,8 +154,8 @@ To create a custom corpus bundle:
 
 ```typescript
 import { writeFileSync } from "fs";
-import { loadCorpusBundleFromIndex } from "bun_nltk/corpus";
-import type { CorpusMiniIndex } from "bun_nltk/corpus";
+import { loadCorpusBundleFromIndex } from "bun_nltk";
+import type { CorpusMiniIndex } from "bun_nltk";
 
 // Create index
 const index: CorpusMiniIndex = {

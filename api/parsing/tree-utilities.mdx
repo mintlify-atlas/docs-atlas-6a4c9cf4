@@ -1,0 +1,244 @@
+---
+title: Tree Utilities
+description: API reference for parse tree transformation and manipulation utilities
+---
+
+## Overview
+
+bun_nltk provides utility functions for working with parse trees, including conversion to/from bracket notation, tree traversal, and transformations.
+
+## bracketToTree()
+
+Converts a bracketed tree string (Penn Treebank format) to a ParseTree object.
+
+```typescript
+function bracketToTree(text: string): ParseTree
+```
+
+<ParamField path="text" type="string" required>
+  Bracketed tree string in Penn Treebank format (e.g., `"(S (NP John) (VP runs))"`)
+</ParamField>
+
+**Returns:** `ParseTree` object
+
+### Example
+
+```typescript
+import { bracketToTree } from "bun_nltk";
+
+const bracketStr = "(S (NP (DT the) (NN dog)) (VP (VBZ barks)))";
+const tree = bracketToTree(bracketStr);
+
+console.log(tree.label); // "S"
+console.log(tree.children.length); // 2
+```
+
+## treeToBracket()
+
+Converts a ParseTree object to bracketed string notation.
+
+```typescript
+function treeToBracket(tree: ParseTree): string
+```
+
+<ParamField path="tree" type="ParseTree" required>
+  Parse tree object to convert
+</ParamField>
+
+**Returns:** String in Penn Treebank bracket format
+
+### Example
+
+```typescript
+import { parseCfgGrammar, chartParse, treeToBracket } from "bun_nltk";
+
+const grammar = parseCfgGrammar(`
+S -> NP VP
+NP -> 'she'
+VP -> 'runs'
+`);
+
+const trees = chartParse(["she", "runs"], grammar);
+const bracketStr = treeToBracket(trees[0]);
+
+console.log(bracketStr); // "(S (NP she) (VP runs))"
+```
+
+## treeLeaves()
+
+Extracts all leaf nodes (terminal symbols) from a parse tree in left-to-right order.
+
+```typescript
+function treeLeaves(tree: ParseTree): string[]
+```
+
+<ParamField path="tree" type="ParseTree" required>
+  Parse tree to extract leaves from
+</ParamField>
+
+**Returns:** Array of terminal strings
+
+### Example
+
+```typescript
+import { bracketToTree, treeLeaves } from "bun_nltk";
+
+const tree = bracketToTree("(S (NP (DT the) (NN dog)) (VP (VBZ barks)))");
+const leaves = treeLeaves(tree);
+
+console.log(leaves); // ["the", "dog", "barks"]
+```
+
+## treeDepth()
+
+Calculates the maximum depth of a parse tree (number of levels from root to deepest leaf).
+
+```typescript
+function treeDepth(tree: ParseTree): number
+```
+
+<ParamField path="tree" type="ParseTree" required>
+  Parse tree to measure
+</ParamField>
+
+**Returns:** Integer depth (root = 1, single child = 2, etc.)
+
+### Example
+
+```typescript
+import { bracketToTree, treeDepth } from "bun_nltk";
+
+const shallow = bracketToTree("(S (NP she) (VP runs))");
+console.log(treeDepth(shallow)); // 2
+
+const deep = bracketToTree("(S (NP (DT the) (NN dog)) (VP (VBZ barks)))");
+console.log(treeDepth(deep)); // 3
+```
+
+## mapTreeLabels()
+
+Transforms all node labels in a parse tree using a mapping function, preserving tree structure.
+
+```typescript
+function mapTreeLabels(
+  tree: ParseTree,
+  fn: (label: string) => string
+): ParseTree
+```
+
+<ParamField path="tree" type="ParseTree" required>
+  Parse tree to transform
+</ParamField>
+
+<ParamField path="fn" type="(label: string) => string" required>
+  Function that maps each label to a new label
+</ParamField>
+
+**Returns:** New ParseTree with transformed labels
+
+### Example
+
+```typescript
+import { bracketToTree, mapTreeLabels, treeToBracket } from "bun_nltk";
+
+const tree = bracketToTree("(S (NP she) (VP runs))");
+
+// Convert labels to lowercase
+const lowercased = mapTreeLabels(tree, (label) => label.toLowerCase());
+console.log(treeToBracket(lowercased)); // "(s (np she) (vp runs))"
+
+// Add prefix to all labels
+const prefixed = mapTreeLabels(tree, (label) => `X-${label}`);
+console.log(treeToBracket(prefixed)); // "(X-S (X-NP she) (X-VP runs))"
+```
+
+## collapseUnaryChains()
+
+Collapses unary production chains in a parse tree by combining parent and child labels.
+
+```typescript
+function collapseUnaryChains(tree: ParseTree): ParseTree
+```
+
+<ParamField path="tree" type="ParseTree" required>
+  Parse tree to collapse
+</ParamField>
+
+**Returns:** New ParseTree with unary chains collapsed using `+` notation
+
+### Example
+
+```typescript
+import { bracketToTree, collapseUnaryChains, treeToBracket } from "bun_nltk";
+
+// Tree with unary chain: S -> VP -> VBZ
+const tree = bracketToTree("(S (VP (VBZ runs)))");
+
+const collapsed = collapseUnaryChains(tree);
+console.log(treeToBracket(collapsed)); // "(S+VP+VBZ runs)"
+
+// Tree without unary chains remains unchanged
+const branching = bracketToTree("(S (NP she) (VP runs))");
+const result = collapseUnaryChains(branching);
+console.log(treeToBracket(result)); // "(S (NP she) (VP runs))"
+```
+
+## Types
+
+### ParseTree
+
+```typescript
+interface ParseTree {
+  label: string;
+  children: Array<ParseTree | string>;
+}
+```
+
+- `label`: Non-terminal or terminal symbol label
+- `children`: Array of child nodes (ParseTree objects) or terminal strings
+
+## Common Use Cases
+
+### Round-trip conversion
+
+```typescript
+import { bracketToTree, treeToBracket } from "bun_nltk";
+
+const original = "(S (NP (DT the) (NN cat)) (VP (VBZ sits)))";
+const tree = bracketToTree(original);
+const converted = treeToBracket(tree);
+
+console.log(original === converted); // true
+```
+
+### Tree analysis pipeline
+
+```typescript
+import { bracketToTree, treeDepth, treeLeaves } from "bun_nltk";
+
+const tree = bracketToTree("(S (NP (DT the) (NN dog)) (VP (VBZ barks)))");
+
+console.log("Depth:", treeDepth(tree)); // 3
+console.log("Leaves:", treeLeaves(tree)); // ["the", "dog", "barks"]
+console.log("Leaf count:", treeLeaves(tree).length); // 3
+```
+
+### Grammar normalization
+
+```typescript
+import { bracketToTree, mapTreeLabels, collapseUnaryChains, treeToBracket } from "bun_nltk";
+
+const tree = bracketToTree("(ROOT (S (VP (VBZ runs))))");
+
+// Collapse unary chains and lowercase labels
+const normalized = collapseUnaryChains(tree);
+const lowercased = mapTreeLabels(normalized, (label) => label.toLowerCase());
+
+console.log(treeToBracket(lowercased)); // "(root+s+vp+vbz runs)"
+```
+
+## See Also
+
+- [CFG Parser](/api/parsing/cfg-parser) - Context-free grammar parsing
+- [Earley Parser](/api/parsing/earley-parser) - Earley algorithm for arbitrary CFGs
+- [PCFG Parser](/api/parsing/pcfg-parser) - Probabilistic context-free grammar parsing

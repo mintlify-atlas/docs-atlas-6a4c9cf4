@@ -7,6 +7,7 @@
     "light": "#34d399",
     "dark": "#059669"
   },
+  "favicon": "/favicon.svg",
   "navbar": {
     "primary": {
       "type": "github",
@@ -113,7 +114,8 @@
               "api/parsing/cfg-parser",
               "api/parsing/earley-parser",
               "api/parsing/dependency-parser",
-              "api/parsing/pcfg-parser"
+              "api/parsing/pcfg-parser",
+              "api/parsing/tree-utilities"
             ]
           },
           {

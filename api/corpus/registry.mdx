@@ -29,7 +29,7 @@ function loadCorpusRegistryManifest(manifestPath: string): CorpusRegistryManifes
 ### Example
 
 ```typescript
-import { loadCorpusRegistryManifest } from "bun_nltk/corpus";
+import { loadCorpusRegistryManifest } from "bun_nltk";
 
 const manifest = loadCorpusRegistryManifest("./corpus-registry.json");
 
@@ -71,7 +71,7 @@ async function downloadCorpusRegistry(
 ### Example: Basic Download
 
 ```typescript
-import { downloadCorpusRegistry, loadCorpusBundleFromIndex } from "bun_nltk/corpus";
+import { downloadCorpusRegistry, loadCorpusBundleFromIndex } from "bun_nltk";
 
 // Download corpus from registry
 const indexPath = await downloadCorpusRegistry(
@@ -90,7 +90,7 @@ console.log(`Loaded ${words.length} words`);
 ### Example: With Custom Fetch
 
 ```typescript
-import { downloadCorpusRegistry } from "bun_nltk/corpus";
+import { downloadCorpusRegistry } from "bun_nltk";
 
 // Custom fetch function with authentication
 const customFetch = async (url: string): Promise<Uint8Array> => {
@@ -121,7 +121,7 @@ const indexPath = await downloadCorpusRegistry(
 import { 
   loadCorpusRegistryManifest, 
   downloadCorpusRegistry 
-} from "bun_nltk/corpus";
+} from "bun_nltk";
 
 // Load manifest first
 const manifest = loadCorpusRegistryManifest("./registry.json");
@@ -245,7 +245,7 @@ When a `sha256` field is provided in a registry entry:
 **Example with verification:**
 
 ```typescript
-import { downloadCorpusRegistry } from "bun_nltk/corpus";
+import { downloadCorpusRegistry } from "bun_nltk";
 
 try {
   await downloadCorpusRegistry("./registry.json", "./corpus");
@@ -268,7 +268,7 @@ Common errors:
 **Example:**
 
 ```typescript
-import { downloadCorpusRegistry } from "bun_nltk/corpus";
+import { downloadCorpusRegistry } from "bun_nltk";
 
 try {
   const indexPath = await downloadCorpusRegistry(
@@ -293,7 +293,7 @@ try {
 import { 
   downloadCorpusRegistry, 
   loadCorpusBundleFromIndex 
-} from "bun_nltk/corpus";
+} from "bun_nltk";
 import { existsSync } from "fs";
 
 const CORPUS_DIR = "./my-corpus";
